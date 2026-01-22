@@ -4,6 +4,7 @@
 #include <QMediaPlayer>
 #include <QObject>
 #include <QPointer>
+#include <QProcess>
 #include <QUrl>
 
 #include "core_types.h"
@@ -55,6 +56,7 @@ private:
 	QMediaPlayer m_player;
 	QSharedPointer<RequestToken> searchToken;
 	QSharedPointer<RequestToken> playUrlToken;
+	QProcess *musicApiProcess = nullptr;
 	bool m_loading = false;
 	QUrl m_currentUrl;
 	bool m_playing = false;
@@ -65,4 +67,3 @@ private:
 };
 
 }
-

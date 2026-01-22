@@ -1,6 +1,7 @@
 // 引入 Qt Quick 基础模块
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Layouts
 import QtMultimedia
 
 // 应用主窗口，当前为最小示例界面
@@ -10,10 +11,39 @@ Window {
 	visible: true
 	title: qsTr("Qt Rewrite Music Player")
 
+	property string lastError: ""
+
+	Connections {
+		target: musicController
+		function onErrorOccurred(message) {
+			lastError = message
+			errorDialog.open()
+		}
+	}
+
+	Dialog {
+		id: errorDialog
+		title: qsTr("错误")
+		modal: true
+		standardButtons: Dialog.Ok
+		onClosed: lastError = ""
+		contentItem: Text {
+			text: lastError
+			wrapMode: Text.Wrap
+			width: 420
+		}
+	}
+
 	Column {
 		anchors.fill: parent
 		anchors.margins: 16
 		spacing: 12
+
+		BusyIndicator {
+			running: musicController && musicController.loading
+			visible: running
+			anchors.horizontalCenter: parent.horizontalCenter
+		}
 
 		Row {
 			spacing: 8
@@ -21,11 +51,11 @@ Window {
 				id: searchInput
 				placeholderText: qsTr("搜索歌曲关键词")
 				Layout.fillWidth: true
-				onAccepted: musicController.search(text)
+				onAccepted: if (musicController) musicController.search(text)
 			}
 			Button {
 				text: qsTr("搜索")
-				onClicked: musicController.search(searchInput.text)
+				onClicked: if (musicController) musicController.search(searchInput.text)
 			}
 		}
 
@@ -33,7 +63,7 @@ Window {
 			id: listView
 			anchors.horizontalCenter: parent.horizontalCenter
 			height: parent.height - 160
-			model: musicController.songsModel
+			model: musicController ? musicController.songsModel : null
 			delegate: Rectangle {
 				width: listView.width
 				height: 40
@@ -48,7 +78,7 @@ Window {
 				}
 				MouseArea {
 					anchors.fill: parent
-					onClicked: musicController.playIndex(index)
+					onClicked: if (musicController) musicController.playIndex(index)
 				}
 			}
 		}
@@ -57,19 +87,20 @@ Window {
 			spacing: 8
 			anchors.horizontalCenter: parent.horizontalCenter
 			Button {
-				text: musicController.playing ? qsTr("暂停") : qsTr("播放")
-				onClicked: musicController.playing ? musicController.pause() : musicController.resume()
+				text: musicController && musicController.playing ? qsTr("暂停") : qsTr("播放")
+				onClicked: if (musicController) musicController.playing ? musicController.pause() : musicController.resume()
 			}
 			Button {
 				text: qsTr("停止")
-				onClicked: musicController.stop()
+				onClicked: if (musicController) musicController.stop()
 			}
 			Slider {
+				id: volumeSlider
 				from: 0
 				to: 100
-				value: musicController.volume
-				onValueChanged: musicController.volume = value
+				value: 50
 				width: 150
+				onMoved: if (musicController) musicController.volume = value
 			}
 		}
 	}

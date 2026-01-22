@@ -171,6 +171,7 @@ void HttpClient::sendOnce(const HttpRequestOptions &options, const QSharedPointe
 	// 根据 method 选择 GET/POST/PUT
 	QNetworkReply *reply = nullptr;
 	const QByteArray method = options.method.isEmpty() ? QByteArray("GET") : options.method.toUpper();
+	Logger::debug(QStringLiteral("HTTP %1 %2").arg(QString::fromLatin1(method)).arg(options.url.toString()));
 	if (method == "POST")
 		reply = manager.post(request, options.body);
 	else if (method == "PUT")
@@ -206,7 +207,8 @@ void HttpClient::sendOnce(const HttpRequestOptions &options, const QSharedPointe
 		const auto headerList = reply->rawHeaderList();
 		for (const QByteArray &name : headerList)
 			response.headers.insert(name, reply->rawHeader(name));
-		response.body = reply->readAll();
+		if (reply->isOpen())
+			response.body = reply->readAll();
 
 		// 将 Qt 的网络错误转换为统一的 Error 对象
 		if (reply->error() != QNetworkReply::NoError)
@@ -216,10 +218,12 @@ void HttpClient::sendOnce(const HttpRequestOptions &options, const QSharedPointe
 			e.code = static_cast<int>(reply->error());
 			e.message = reply->errorString();
 			e.detail = QString::number(response.statusCode);
+			Logger::warning(QStringLiteral("HTTP failed: %1 (status %2)").arg(e.message).arg(response.statusCode));
 			callback(Result<HttpResponse>::failure(e));
 		}
 		else
 		{
+			Logger::debug(QStringLiteral("HTTP ok: status %1, bytes %2").arg(response.statusCode).arg(response.body.size()));
 			callback(Result<HttpResponse>::success(response));
 		}
 

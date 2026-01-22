@@ -83,3 +83,6 @@ CMakeLists.txt.user*
 /CMakeCache.txt
 /cmake-build-*/
 /build*/
+
+music-api/node_modules/
+music-api/package-lock.json

@@ -1,0 +1,10 @@
+{
+  "name": "qt-rewrite-music-api",
+  "private": true,
+  "version": "0.1.0",
+  "type": "commonjs",
+  "dependencies": {
+    "netease-cloud-music-api-alger": "^4.26.1"
+  }
+}
+
