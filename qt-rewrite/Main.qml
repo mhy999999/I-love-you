@@ -34,6 +34,7 @@ Window {
 		id: errorDialog
 		title: qsTr("错误")
 		modal: true
+		implicitWidth: 460
 		standardButtons: Dialog.Ok
 		onClosed: lastError = ""
 		contentItem: Text {
@@ -62,7 +63,8 @@ Window {
 			currentIndex: tabBar.currentIndex
 
 			Item {
-				anchors.fill: parent
+					Layout.fillWidth: true
+					Layout.fillHeight: true
 				Column {
 					anchors.fill: parent
 					spacing: 12
@@ -212,7 +214,8 @@ Window {
 			}
 
 			Item {
-				anchors.fill: parent
+					Layout.fillWidth: true
+					Layout.fillHeight: true
 				Column {
 					anchors.fill: parent
 					spacing: 12

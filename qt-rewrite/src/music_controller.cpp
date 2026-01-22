@@ -309,7 +309,6 @@ MusicController::MusicController(QObject *parent)
 {
 	QMap<QByteArray, QByteArray> headers;
 	headers.insert("Accept", "application/json");
-	headers.insert("Accept-Encoding", "gzip, deflate");
 	httpClient.setDefaultHeaders(headers);
 	httpClient.setUserAgent(QByteArray("QtRewrite/1.0 (NeteaseProvider)"));
 
@@ -622,17 +621,23 @@ void MusicController::saveLyricToCache(const QString &key, const Lyric &lyric)
 
 void MusicController::requestLyric(const QString &providerId, const QString &songId)
 {
+	// 记录本次请求序号，任何晚到的旧回调都必须被忽略
+	quint64 requestId = ++m_lyricRequestId;
 	if (lyricToken)
 		lyricToken->cancel();
 	QString key = providerId + QStringLiteral(":") + songId;
 	Lyric cached;
 	if (lyricFromCache(key, cached))
 	{
+		if (requestId != m_lyricRequestId)
+			return;
 		m_lyricModel.setLyric(cached);
 		updateCurrentLyricIndexByPosition(m_player.position());
 		return;
 	}
-	lyricToken = providerManager.lyric(songId, [this, key](Result<Lyric> result) {
+	lyricToken = providerManager.lyric(songId, [this, key, requestId](Result<Lyric> result) {
+		if (requestId != m_lyricRequestId)
+			return;
 		if (!result.ok)
 		{
 			clearLyric();
@@ -646,6 +651,8 @@ void MusicController::requestLyric(const QString &providerId, const QString &son
 
 void MusicController::requestCover(const QUrl &coverUrl)
 {
+	// 记录本次请求序号，避免快速切歌时旧封面覆盖新封面
+	quint64 requestId = ++m_coverRequestId;
 	if (!coverUrl.isValid() || coverUrl.isEmpty())
 	{
 		setCoverSource({});
@@ -654,12 +661,16 @@ void MusicController::requestCover(const QUrl &coverUrl)
 	QString key = coverUrl.toString();
 	if (imageCache.contains(key))
 	{
+		if (requestId != m_coverRequestId)
+			return;
 		setCoverSource(imageCache.fileUrlForKey(key));
 		return;
 	}
 	if (coverToken)
 		coverToken->cancel();
-	coverToken = providerManager.cover(coverUrl, [this, key](Result<QByteArray> result) {
+	coverToken = providerManager.cover(coverUrl, [this, key, requestId](Result<QByteArray> result) {
+		if (requestId != m_coverRequestId)
+			return;
 		if (!result.ok)
 			return;
 		imageCache.put(key, result.value);
@@ -679,11 +690,15 @@ void MusicController::search(const QString &keyword)
 {
 	if (keyword.trimmed().isEmpty())
 		return;
+	// 记录本次搜索序号，保证只展示最新一次搜索结果
+	quint64 requestId = ++m_searchRequestId;
 	Logger::info(QStringLiteral("Search: %1").arg(keyword.trimmed()));
 	if (searchToken)
 		searchToken->cancel();
 	setLoading(true);
-	searchToken = providerManager.search(keyword, 30, [this](Result<QList<Song>> result) {
+	searchToken = providerManager.search(keyword, 30, [this, requestId](Result<QList<Song>> result) {
+		if (requestId != m_searchRequestId)
+			return;
 		setLoading(false);
 		if (!result.ok)
 		{
@@ -700,6 +715,8 @@ void MusicController::playIndex(int index)
 {
 	if (index < 0 || index >= m_songsModel.rowCount())
 		return;
+	// 记录本次播放序号，避免旧 playUrl 回调覆盖当前播放
+	quint64 requestId = ++m_playRequestId;
 	if (playUrlToken)
 		playUrlToken->cancel();
 	const QList<Song> &songs = m_songsModel.songs();
@@ -709,7 +726,16 @@ void MusicController::playIndex(int index)
 	QString songId = song.id;
 	QString providerId = song.providerId;
 	QString source = song.source;
-	Logger::info(QStringLiteral("Play index %1, provider=%2, songId=%3").arg(index).arg(providerId).arg(songId));
+	QStringList artistNames;
+	for (const Artist &a : song.artists)
+		artistNames.append(a.name);
+	Logger::info(QStringLiteral("Play index %1, provider=%2, songId=%3, title=%4, artists=%5, durationMs=%6")
+				 .arg(index)
+				 .arg(providerId)
+				 .arg(songId)
+				 .arg(song.name)
+				 .arg(artistNames.join(QStringLiteral(" / ")))
+				 .arg(static_cast<qint64>(song.durationMs)));
 	clearLyric();
 	setCoverSource({});
 	requestCover(song.album.coverUrl);
@@ -721,7 +747,9 @@ void MusicController::playIndex(int index)
 	QString opaqueSongId = songId;
 	if (providerId == QStringLiteral("gdstudio"))
 		opaqueSongId = source + QStringLiteral(":") + songId;
-	playUrlToken = providerManager.playUrl(opaqueSongId, [this](Result<PlayUrl> result) {
+	playUrlToken = providerManager.playUrl(opaqueSongId, [this, requestId](Result<PlayUrl> result) {
+		if (requestId != m_playRequestId)
+			return;
 		setLoading(false);
 		if (!result.ok)
 		{
@@ -739,6 +767,8 @@ void MusicController::loadPlaylist(const QString &playlistId)
 	QString id = playlistId.trimmed();
 	if (id.isEmpty())
 		return;
+	// 记录本次歌单详情请求序号，避免快速切歌单时旧结果覆盖
+	quint64 requestId = ++m_playlistDetailRequestId;
 	if (playlistDetailToken)
 		playlistDetailToken->cancel();
 	if (playlistTracksToken)
@@ -749,7 +779,9 @@ void MusicController::loadPlaylist(const QString &playlistId)
 	setPlaylistHasMore(false);
 	setPlaylistLoading(true);
 	m_playlistModel.setSongs({});
-	playlistDetailToken = providerManager.playlistDetail(id, [this](Result<PlaylistMeta> result) {
+	playlistDetailToken = providerManager.playlistDetail(id, [this, requestId](Result<PlaylistMeta> result) {
+		if (requestId != m_playlistDetailRequestId)
+			return;
 		if (!result.ok)
 		{
 			setPlaylistLoading(false);
@@ -767,12 +799,16 @@ void MusicController::loadMorePlaylist()
 {
 	if (m_playlistId.isEmpty())
 		return;
+	// 记录本次分页请求序号，避免并发翻页导致列表错乱
+	quint64 requestId = ++m_playlistTracksRequestId;
 	if (playlistTracksToken)
 		playlistTracksToken->cancel();
 	setPlaylistLoading(true);
 	int limit = m_playlistLimit > 0 ? m_playlistLimit : 50;
 	int offset = m_playlistOffset;
-	playlistTracksToken = providerManager.playlistTracks(m_playlistId, limit, offset, [this, limit, offset](Result<PlaylistTracksPage> result) {
+	playlistTracksToken = providerManager.playlistTracks(m_playlistId, limit, offset, [this, limit, offset, requestId](Result<PlaylistTracksPage> result) {
+		if (requestId != m_playlistTracksRequestId)
+			return;
 		setPlaylistLoading(false);
 		if (!result.ok)
 		{

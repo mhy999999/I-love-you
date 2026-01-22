@@ -10,10 +10,12 @@
 #include <QFileInfo>
 #include <QProcess>
 #include <QRegularExpression>
+#include <QSet>
 #include <QSettings>
 #include <QTimer>
 #include <QUrlQuery>
 
+#include "logger.h"
 #include "json_utils.h"
 
 namespace App
@@ -24,6 +26,277 @@ NeteaseProvider::NeteaseProvider(HttpClient *httpClient, const QUrl &baseUrl, QO
 	, client(httpClient)
 	, apiBase(baseUrl)
 {
+#ifdef QT_DEBUG
+	if (qEnvironmentVariableIsSet("APP_SELFTEST_GD_MATCHING"))
+	{
+		{
+			const QUrl base(QStringLiteral("https://music-api.gdstudio.xyz/api.php"));
+			QUrl u = base;
+			QUrlQuery q;
+			q.addQueryItem(QStringLiteral("types"), QStringLiteral("search"));
+			q.addQueryItem(QStringLiteral("source"), QStringLiteral("tencent"));
+			q.addQueryItem(QStringLiteral("name"), QStringLiteral("刀马旦 李玟 周杰伦"));
+			q.addQueryItem(QStringLiteral("count"), QStringLiteral("1"));
+			q.addQueryItem(QStringLiteral("pages"), QStringLiteral("1"));
+			u.setQuery(q);
+			Q_ASSERT(!u.toString(QUrl::FullyEncoded).contains(QLatin1Char(' ')));
+		}
+
+		const int titleExact = 120;
+		const int durationClose = 60;
+		const int albumExact = 35;
+		const int artistSingle = -60 - 80;
+		const int artistFull = 90 + 25;
+		Q_ASSERT(titleExact + durationClose + albumExact + artistSingle < 200);
+		Q_ASSERT(titleExact + durationClose + albumExact + artistFull >= 200);
+
+		{
+			Song song;
+			song.name = QStringLiteral("刀马旦");
+			Artist a1;
+			a1.name = QStringLiteral("李玟");
+			Artist a2;
+			a2.name = QStringLiteral("周杰伦");
+			song.artists = {a1, a2};
+			song.album.name = QStringLiteral("Promise");
+			song.durationMs = 267000;
+
+			QJsonArray arr;
+			arr.append(QJsonObject{{QStringLiteral("id"), QStringLiteral("1")},
+							 {QStringLiteral("name"), QStringLiteral("刀马旦")},
+							 {QStringLiteral("artist"), QStringLiteral("李玟")},
+							 {QStringLiteral("album"), QStringLiteral("Promise")},
+							 {QStringLiteral("duration"), 267000}});
+			arr.append(QJsonObject{{QStringLiteral("id"), QStringLiteral("2")},
+							 {QStringLiteral("name"), QStringLiteral("刀马旦")},
+							 {QStringLiteral("artist"), QStringLiteral("李玟 周杰伦")},
+							 {QStringLiteral("album"), QStringLiteral("Promise")},
+							 {QStringLiteral("duration"), 267000}});
+
+			auto normalizeText = [](QString s) -> QString {
+				s = s.trimmed().toLower();
+				s.replace('\\', QChar());
+				static const QRegularExpression brackets(QStringLiteral("[\\(\\[\\{\\uff08\\u3010].*?[\\)\\]\\}\\uff09\\u3011]"));
+				s.replace(brackets, QString());
+				static const QRegularExpression nonWord(QStringLiteral("[^\\p{L}\\p{N}]+"));
+				s.replace(nonWord, QString());
+				return s;
+			};
+			auto extractFlags = [](const QString &raw) -> QSet<QString> {
+				QSet<QString> flags;
+				auto addIf = [&flags, &raw](const QString &key, const QStringList &tokens) {
+					for (const QString &t : tokens)
+					{
+						if (raw.contains(t, Qt::CaseInsensitive))
+						{
+							flags.insert(key);
+							return;
+						}
+					}
+				};
+				addIf(QStringLiteral("live"), {QStringLiteral("live"), QStringLiteral("现场"), QStringLiteral("演唱会")});
+				addIf(QStringLiteral("remix"), {QStringLiteral("remix"), QStringLiteral("混音")});
+				addIf(QStringLiteral("dj"), {QStringLiteral("dj")});
+				addIf(QStringLiteral("acoustic"), {QStringLiteral("acoustic"), QStringLiteral("不插电")});
+				addIf(QStringLiteral("demo"), {QStringLiteral("demo")});
+				addIf(QStringLiteral("inst"), {QStringLiteral("inst"), QStringLiteral("instrumental"), QStringLiteral("伴奏"), QStringLiteral("纯音乐")});
+				addIf(QStringLiteral("cover"), {QStringLiteral("cover"), QStringLiteral("翻唱")});
+				return flags;
+			};
+			auto maybeDurationMs = [](const QJsonObject &obj) -> qint64 {
+				qint64 v = 0;
+				if (obj.contains(QStringLiteral("duration")))
+					v = static_cast<qint64>(obj.value(QStringLiteral("duration")).toVariant().toLongLong());
+				if (v <= 0 && obj.contains(QStringLiteral("time")))
+					v = static_cast<qint64>(obj.value(QStringLiteral("time")).toVariant().toLongLong());
+				if (v > 0 && v < 1000)
+					v = v * 1000;
+				return v;
+			};
+
+			QString songTitleNorm = normalizeText(song.name);
+			QStringList songArtistNorms;
+			for (const Artist &a : song.artists)
+			{
+				QString an = normalizeText(a.name);
+				if (!an.isEmpty() && !songArtistNorms.contains(an))
+					songArtistNorms.append(an);
+			}
+			QString albumNorm = normalizeText(song.album.name);
+			QSet<QString> songFlags = extractFlags(song.name);
+
+			auto readFirstString = [](const QJsonObject &obj, const QStringList &keys) -> QString {
+				for (const QString &k : keys)
+				{
+					if (!obj.contains(k) || obj.value(k).isNull())
+						continue;
+					QJsonValue v = obj.value(k);
+					if (v.isString())
+						return v.toString();
+					if (v.isDouble())
+						return QString::number(v.toDouble(), 'f', 0);
+					if (v.isBool())
+						return v.toBool() ? QStringLiteral("true") : QStringLiteral("false");
+				}
+				return QString();
+			};
+
+			auto calcScore = [&](const QJsonObject &o) -> int {
+				QString candTitle = readFirstString(o, {QStringLiteral("name"), QStringLiteral("title"), QStringLiteral("song")}).trimmed();
+				QString candArtist = readFirstString(o, {QStringLiteral("artist"), QStringLiteral("artists"), QStringLiteral("singer")}).trimmed();
+				QString candAlbum = readFirstString(o, {QStringLiteral("album"), QStringLiteral("al"), QStringLiteral("albumName")}).trimmed();
+				QString candTitleNorm = normalizeText(candTitle);
+				QString candArtistNorm = normalizeText(candArtist);
+				QString candAlbumNorm = normalizeText(candAlbum);
+				int score = 0;
+				if (!songTitleNorm.isEmpty() && !candTitleNorm.isEmpty())
+				{
+					if (candTitleNorm == songTitleNorm)
+						score += 120;
+					else if (candTitleNorm.contains(songTitleNorm) || songTitleNorm.contains(candTitleNorm))
+						score += 90;
+					else
+						score += 10;
+				}
+
+				int artistHit = 0;
+				for (const QString &an : songArtistNorms)
+				{
+					if (!an.isEmpty() && candArtistNorm.contains(an))
+						artistHit++;
+				}
+				if (!songArtistNorms.isEmpty())
+				{
+					if (artistHit >= 2)
+						score += 90;
+					else if (artistHit == 1)
+						score -= 60;
+					else
+						score -= 120;
+					if (artistHit == songArtistNorms.size())
+						score += 25;
+					if (songArtistNorms.size() >= 2 && artistHit < 2)
+						score -= 80;
+				}
+
+				qint64 candDur = maybeDurationMs(o);
+				if (song.durationMs > 0 && candDur > 0)
+				{
+					qint64 diff = song.durationMs - candDur;
+					if (diff < 0)
+						diff = -diff;
+					if (diff <= 2000)
+						score += 60;
+					else if (diff <= 5000)
+						score += 40;
+					else if (diff <= 10000)
+						score += 15;
+					else
+						score -= 40;
+				}
+
+				if (!albumNorm.isEmpty() && !candAlbumNorm.isEmpty())
+				{
+					if (candAlbumNorm == albumNorm)
+						score += 35;
+					else if (candAlbumNorm.contains(albumNorm) || albumNorm.contains(candAlbumNorm))
+						score += 20;
+					else
+						score -= 10;
+				}
+
+				QString raw = candTitle + QStringLiteral(" ") + candArtist + QStringLiteral(" ") + candAlbum;
+				QSet<QString> candFlags = extractFlags(raw);
+				for (const QString &flag : songFlags)
+				{
+					if (!candFlags.contains(flag))
+						score -= 45;
+				}
+				for (const QString &flag : candFlags)
+				{
+					if (!songFlags.contains(flag))
+						score -= 35;
+				}
+				return score;
+			};
+
+			const int soloScore = calcScore(arr.at(0).toObject());
+			const int duetScore = calcScore(arr.at(1).toObject());
+			Q_ASSERT(duetScore > soloScore);
+			Q_ASSERT(soloScore < 200);
+			Q_ASSERT(duetScore >= 200);
+		}
+
+		{
+			Song song;
+			song.name = QStringLiteral("布拉格广场");
+			Artist a1;
+			a1.name = QStringLiteral("蔡依林");
+			Artist a2;
+			a2.name = QStringLiteral("周杰伦");
+			song.artists = {a1, a2};
+			song.durationMs = 294600;
+
+			QJsonObject coverCandidate{{QStringLiteral("id"), QStringLiteral("x")},
+							 {QStringLiteral("name"), QStringLiteral("布拉格广场 (cover: 蔡依林|周杰伦)")},
+							 {QStringLiteral("artist"), QStringLiteral("秋的呼吸Rita")},
+							 {QStringLiteral("album"), QStringLiteral("秋的呼吸Rita翻唱集")},
+							 {QStringLiteral("duration"), 294000}};
+
+			auto normalizeText = [](QString s) -> QString {
+				s = s.trimmed().toLower();
+				s.replace('\\', QChar());
+				static const QRegularExpression brackets(QStringLiteral("[\\(\\[\\{\\uff08\\u3010].*?[\\)\\]\\}\\uff09\\u3011]"));
+				s.replace(brackets, QString());
+				static const QRegularExpression nonWord(QStringLiteral("[^\\p{L}\\p{N}]+"));
+				s.replace(nonWord, QString());
+				return s;
+			};
+			auto extractFlags = [](const QString &raw) -> QSet<QString> {
+				QSet<QString> flags;
+				auto addIf = [&flags, &raw](const QString &key, const QStringList &tokens) {
+					for (const QString &t : tokens)
+					{
+						if (raw.contains(t, Qt::CaseInsensitive))
+						{
+							flags.insert(key);
+							return;
+						}
+					}
+				};
+				addIf(QStringLiteral("cover"), {QStringLiteral("cover"), QStringLiteral("翻唱")});
+				addIf(QStringLiteral("inst"), {QStringLiteral("inst"), QStringLiteral("instrumental"), QStringLiteral("伴奏"), QStringLiteral("纯音乐")});
+				return flags;
+			};
+
+			QStringList songArtistNorms;
+			for (const Artist &a : song.artists)
+			{
+				QString an = normalizeText(a.name);
+				if (!an.isEmpty() && !songArtistNorms.contains(an))
+					songArtistNorms.append(an);
+			}
+			QString candTitle = coverCandidate.value(QStringLiteral("name")).toString();
+			QString candArtist = coverCandidate.value(QStringLiteral("artist")).toString();
+			QString candAlbum = coverCandidate.value(QStringLiteral("album")).toString();
+			QString candArtistNorm = normalizeText(candArtist);
+			QSet<QString> songFlags = extractFlags(song.name);
+			QSet<QString> candFlags = extractFlags(candTitle + QStringLiteral(" ") + candArtist + QStringLiteral(" ") + candAlbum);
+			int artistHit = 0;
+			for (const QString &an : songArtistNorms)
+			{
+				if (!an.isEmpty() && candArtistNorm.contains(an))
+					artistHit++;
+			}
+			bool acceptable = true;
+			if (songArtistNorms.size() >= 2 && artistHit < 2)
+				acceptable = false;
+			if (!songFlags.contains(QStringLiteral("cover")) && candFlags.contains(QStringLiteral("cover")))
+				acceptable = false;
+			Q_ASSERT(!acceptable);
+		}
+	}
+#endif
 }
 
 QString NeteaseProvider::id() const
@@ -99,6 +372,14 @@ QSharedPointer<RequestToken> NeteaseProvider::songDetail(const QString &songId, 
 QSharedPointer<RequestToken> NeteaseProvider::playUrl(const QString &songId, const PlayUrlCallback &callback)
 {
 	QSharedPointer<RequestToken> token = QSharedPointer<RequestToken>::create();
+	// 保证整个 playUrl 流程只会回调一次：多策略兜底会有多条异步路径
+	QSharedPointer<bool> finished = QSharedPointer<bool>::create(false);
+	auto finish = [callback, finished](const Result<PlayUrl> &result) {
+		if (*finished)
+			return;
+		*finished = true;
+		callback(result);
+	};
 
 	auto cancelIfOuterCancelled = [token](const QSharedPointer<RequestToken> &inner) {
 		QObject::connect(token.data(), &RequestToken::cancelled, inner.data(), [inner]() {
@@ -117,7 +398,7 @@ QSharedPointer<RequestToken> NeteaseProvider::playUrl(const QString &songId, con
 	};
 
 	auto readEnabledPlatforms = []() -> QStringList {
-		const QStringList allowed = {QStringLiteral("migu"), QStringLiteral("kugou"), QStringLiteral("kuwo"), QStringLiteral("pyncmd"), QStringLiteral("bilibili")};
+		const QStringList allowed = {QStringLiteral("migu"), QStringLiteral("kugou"), QStringLiteral("pyncmd"), QStringLiteral("bilibili")};
 		QSettings settings;
 		settings.beginGroup(QStringLiteral("set"));
 		QVariant v = settings.value(QStringLiteral("enabledMusicSources"));
@@ -184,16 +465,20 @@ QSharedPointer<RequestToken> NeteaseProvider::playUrl(const QString &songId, con
 		return QString();
 	};
 
-	auto startUnblockProcess = [this, songId, callback, token, readEnabledPlatforms, findMusicApiDir](const Song &song) {
+	auto startUnblockProcess = [this, songId, finish, token, readEnabledPlatforms, findMusicApiDir](const Song &song) {
 		if (token->isCancelled())
 		{
 			Error e;
 			e.category = ErrorCategory::Network;
 			e.code = -2;
 			e.message = QStringLiteral("Request cancelled");
-			callback(Result<PlayUrl>::failure(e));
+			finish(Result<PlayUrl>::failure(e));
 			return;
 		}
+
+		Logger::info(QStringLiteral("Start unblock process: songId=%1, name=%2")
+					 .arg(songId)
+					 .arg(song.name));
 
 		QString apiDir = findMusicApiDir();
 		if (apiDir.isEmpty())
@@ -202,12 +487,26 @@ QSharedPointer<RequestToken> NeteaseProvider::playUrl(const QString &songId, con
 			e.category = ErrorCategory::UpstreamChange;
 			e.code = -1;
 			e.message = QStringLiteral("Embedded music API directory not found");
-			callback(Result<PlayUrl>::failure(e));
+			finish(Result<PlayUrl>::failure(e));
+			return;
+		}
+
+		QDir apiDirObj(apiDir);
+		QString unblockPkg = apiDirObj.filePath(QStringLiteral("node_modules/@unblockneteasemusic/server/package.json"));
+		if (!QFileInfo::exists(unblockPkg))
+		{
+			Error e;
+			e.category = ErrorCategory::UpstreamChange;
+			e.code = -1;
+			e.message = QStringLiteral("Embedded music API dependencies not installed");
+			e.detail = unblockPkg;
+			finish(Result<PlayUrl>::failure(e));
 			return;
 		}
 
 		QJsonObject songData;
 		songData.insert(QStringLiteral("name"), song.name);
+		songData.insert(QStringLiteral("duration"), static_cast<qint64>(song.durationMs));
 		QJsonArray artists;
 		for (const Artist &a : song.artists)
 		{
@@ -234,10 +533,15 @@ QSharedPointer<RequestToken> NeteaseProvider::playUrl(const QString &songId, con
 		QString js = QStringLiteral(
 			"const mod=require('@unblockneteasemusic/server');"
 			"const match=mod.default||mod;"
+			"const w=(...a)=>process.stderr.write(a.map(x=>typeof x==='string'?x:JSON.stringify(x)).join(' ')+'\\n');"
+			"console.log=w;console.info=w;console.warn=w;console.error=w;"
 			"(async()=>{"
-			"const id=parseInt(process.argv[2],10);"
-			"const platforms=JSON.parse(process.argv[3]||'[]');"
-			"const song=JSON.parse(process.argv[4]||'{}');"
+			"const tail=process.argv.slice(-3);"
+			"const id=parseInt(tail[0],10);"
+			"let platforms;"
+			"try{platforms=JSON.parse(tail[1]||'[]');}catch(e){platforms=[];}"
+			"if(!Array.isArray(platforms)) platforms=[String(platforms)];"
+			"const song=JSON.parse(tail[2]||'{}');"
 			"const data=await match(id, platforms, song);"
 			"process.stdout.write(JSON.stringify(data||{}));"
 			"})().catch(e=>{console.error(e&&e.stack||e);process.exit(1);});"
@@ -261,60 +565,105 @@ QSharedPointer<RequestToken> NeteaseProvider::playUrl(const QString &songId, con
 				proc->kill();
 		});
 
-		QObject::connect(proc, &QProcess::finished, proc, [proc, timer, callback](int exitCode, QProcess::ExitStatus exitStatus) {
+		QObject::connect(proc, &QProcess::finished, proc, [proc, timer, finish](int exitCode, QProcess::ExitStatus exitStatus) {
 			timer->stop();
 			QByteArray out = proc->readAllStandardOutput();
 			QByteArray err = proc->readAllStandardError();
 			if (exitStatus != QProcess::NormalExit || exitCode != 0)
 			{
+				QString errTail = QString::fromLocal8Bit(err).right(800);
+				Logger::warning(QStringLiteral("Unblock process failed: exitCode=%1, status=%2, stderr=%3")
+								.arg(exitCode)
+								.arg(static_cast<int>(exitStatus))
+								.arg(errTail));
 				Error e;
 				e.category = ErrorCategory::Unknown;
 				e.code = exitCode;
 				e.message = QStringLiteral("Unblock music failed");
-				e.detail = QString::fromLocal8Bit(err).right(800);
-				callback(Result<PlayUrl>::failure(e));
+				e.detail = errTail;
+				finish(Result<PlayUrl>::failure(e));
 				proc->deleteLater();
 				return;
 			}
 
-			QJsonParseError pe{};
-			QJsonDocument doc = QJsonDocument::fromJson(out, &pe);
-			if (pe.error != QJsonParseError::NoError || !doc.isObject())
+		QJsonObject o;
+		QJsonDocument doc;
+		QJsonParseError pe{};
+		doc = QJsonDocument::fromJson(out, &pe);
+		if (pe.error == QJsonParseError::NoError && doc.isObject())
 			{
-				Error e;
-				e.category = ErrorCategory::Parser;
-				e.code = -1;
-				e.message = QStringLiteral("Parse unblock result failed");
-				e.detail = QString::fromLocal8Bit(out).right(800);
-				callback(Result<PlayUrl>::failure(e));
-				proc->deleteLater();
-				return;
+			o = doc.object();
 			}
-			QJsonObject o = doc.object();
-			QString urlStr = o.value(QStringLiteral("url")).toString();
-			if (urlStr.trimmed().isEmpty())
+		else
+		{
+			QByteArray raw = out;
+			int end = raw.lastIndexOf('}');
+			while (end > 0)
 			{
-				Error e;
-				e.category = ErrorCategory::UpstreamChange;
-				e.code = 404;
-				e.message = QStringLiteral("Play url not found");
-				callback(Result<PlayUrl>::failure(e));
-				proc->deleteLater();
-				return;
+				int start = raw.lastIndexOf('{', end);
+				if (start < 0)
+					break;
+				QByteArray candidate = raw.mid(start, end - start + 1);
+				if (!candidate.contains("\"url\""))
+				{
+					end = raw.lastIndexOf('}', start - 1);
+					continue;
+				}
+				QJsonParseError ce{};
+				QJsonDocument cdoc = QJsonDocument::fromJson(candidate, &ce);
+				if (ce.error == QJsonParseError::NoError && cdoc.isObject())
+				{
+					o = cdoc.object();
+					break;
+				}
+				end = raw.lastIndexOf('}', start - 1);
 			}
-			PlayUrl p;
-			p.url = QUrl(urlStr);
-			p.bitrate = o.value(QStringLiteral("br")).toInt();
-			p.size = static_cast<qint64>(o.value(QStringLiteral("size")).toDouble());
-			callback(Result<PlayUrl>::success(p));
+		}
+
+		if (o.isEmpty())
+		{
+			Error e;
+			e.category = ErrorCategory::Parser;
+			e.code = -1;
+			e.message = QStringLiteral("Parse unblock result failed");
+			e.detail = QString::fromUtf8(out).right(800);
+			finish(Result<PlayUrl>::failure(e));
+			proc->deleteLater();
+			return;
+		}
+
+		QString urlStr = o.value(QStringLiteral("url")).toString();
+		urlStr = urlStr.trimmed();
+		while (urlStr.startsWith('`') || urlStr.startsWith('"') || urlStr.startsWith('\''))
+			urlStr.remove(0, 1);
+		while (urlStr.endsWith('`') || urlStr.endsWith('"') || urlStr.endsWith('\''))
+			urlStr.chop(1);
+		urlStr = urlStr.trimmed();
+		if (urlStr.isEmpty())
+		{
+			Error e;
+			e.category = ErrorCategory::UpstreamChange;
+			e.code = 404;
+			e.message = QStringLiteral("Play url not found");
+			finish(Result<PlayUrl>::failure(e));
+			proc->deleteLater();
+			return;
+		}
+		PlayUrl p;
+		p.url = QUrl(urlStr);
+		p.bitrate = o.value(QStringLiteral("br")).toInt();
+		p.size = static_cast<qint64>(o.value(QStringLiteral("size")).toDouble());
+		finish(Result<PlayUrl>::success(p));
 			proc->deleteLater();
 		});
 
 		proc->start();
 	};
 
-	auto tryGdMusicOrUnblock = [this, callback, token, cancelIfOuterCancelled, startUnblockProcess](const Song &song) {
+	auto tryGdMusicOrUnblock = [this, finish, token, cancelIfOuterCancelled, startUnblockProcess, finished](const Song &song) {
 		if (token->isCancelled())
+			return;
+		if (*finished)
 			return;
 
 		QStringList parts;
@@ -329,9 +678,12 @@ QSharedPointer<RequestToken> NeteaseProvider::playUrl(const QString &songId, con
 		QString searchQuery = parts.join(' ').trimmed();
 		if (searchQuery.size() < 2)
 		{
+			Logger::info(QStringLiteral("Skip GD Studio search: query too short for song \"%1\"").arg(song.name));
 			startUnblockProcess(song);
 			return;
 		}
+
+		Logger::info(QStringLiteral("Try GD Studio search: \"%1\"").arg(searchQuery));
 
 		const QUrl base(QStringLiteral("https://music-api.gdstudio.xyz/api.php"));
 		const QStringList sources = {QStringLiteral("joox"), QStringLiteral("tidal"), QStringLiteral("netease")};
@@ -342,16 +694,21 @@ QSharedPointer<RequestToken> NeteaseProvider::playUrl(const QString &songId, con
 		};
 		QSharedPointer<State> state = QSharedPointer<State>::create();
 		QSharedPointer<std::function<void()>> nextFn = QSharedPointer<std::function<void()>>::create();
-		*nextFn = [this, base, sources, searchQuery, callback, token, cancelIfOuterCancelled, startUnblockProcess, song, state, nextFn]() {
+		*nextFn = [this, base, sources, searchQuery, finish, token, cancelIfOuterCancelled, startUnblockProcess, song, state, nextFn, finished]() {
 			if (token->isCancelled())
+				return;
+			if (*finished)
 				return;
 			if (state->index >= sources.size())
 			{
+				Logger::warning(QStringLiteral("GD Studio search failed on all sources for \"%1\", fallback to unblock").arg(searchQuery));
 				startUnblockProcess(song);
 				return;
 			}
 			QString source = sources.at(state->index);
 			state->index++;
+
+			Logger::info(QStringLiteral("GD Studio search using source=%1, query=\"%2\"").arg(source, searchQuery));
 
 			QUrl searchUrl = base;
 			QUrlQuery q;
@@ -362,14 +719,21 @@ QSharedPointer<RequestToken> NeteaseProvider::playUrl(const QString &songId, con
 			q.addQueryItem(QStringLiteral("pages"), QStringLiteral("1"));
 			searchUrl.setQuery(q);
 
+			Logger::debug(QStringLiteral("GD Studio search url: %1").arg(searchUrl.toString(QUrl::FullyEncoded)));
+
 			HttpRequestOptions searchOpts;
 			searchOpts.url = searchUrl;
 			searchOpts.timeoutMs = 5000;
-			QSharedPointer<RequestToken> searchToken = client->sendWithRetry(searchOpts, 1, 300, [this, base, source, callback, token, cancelIfOuterCancelled, startUnblockProcess, song, nextFn](Result<HttpResponse> searchResult) {
+			QSharedPointer<RequestToken> searchToken = client->sendWithRetry(searchOpts, 1, 300, [this, base, source, searchQuery, finish, token, cancelIfOuterCancelled, startUnblockProcess, song, nextFn, finished](Result<HttpResponse> searchResult) {
 				if (token->isCancelled())
+					return;
+				if (*finished)
 					return;
 				if (!searchResult.ok)
 				{
+					Logger::warning(QStringLiteral("GD Studio search http failed on source=%1: %2")
+									.arg(source)
+									.arg(searchResult.error.message));
 					(*nextFn)();
 					return;
 				}
@@ -378,42 +742,76 @@ QSharedPointer<RequestToken> NeteaseProvider::playUrl(const QString &songId, con
 				QJsonDocument doc = QJsonDocument::fromJson(searchResult.value.body, &pe);
 				if (pe.error != QJsonParseError::NoError || !doc.isArray())
 				{
+					Logger::warning(QStringLiteral("GD Studio search parse failed on source=%1: %2")
+									.arg(source)
+									.arg(QString::fromUtf8(searchResult.value.body).right(300)));
 					(*nextFn)();
 					return;
 				}
 				QJsonArray arr = doc.array();
-				if (arr.isEmpty() || !arr.first().isObject())
+				if (arr.isEmpty())
 				{
+					Logger::info(QStringLiteral("GD Studio search empty on source=%1").arg(source));
 					(*nextFn)();
 					return;
 				}
-				QJsonObject first = arr.first().toObject();
-				QString trackId = first.value(QStringLiteral("id")).toVariant().toString().trimmed();
-				if (trackId.isEmpty())
-				{
-					(*nextFn)();
-					return;
-				}
-				QString trackSource = first.value(QStringLiteral("source")).toString().trimmed();
-				if (trackSource.isEmpty())
-					trackSource = source;
+			QJsonValue firstVal = arr.at(0);
+			if (!firstVal.isObject())
+			{
+				Logger::warning(QStringLiteral("GD Studio search first result not object on source=%1").arg(source));
+				(*nextFn)();
+				return;
+			}
+			QJsonObject first = firstVal.toObject();
+			QJsonValue idVal = first.value(QStringLiteral("id"));
+			QString trackId;
+			if (idVal.isString())
+				trackId = idVal.toString().trimmed();
+			else if (idVal.isDouble())
+				trackId = QString::number(idVal.toDouble(), 'f', 0).trimmed();
+			if (trackId.isEmpty())
+			{
+				Logger::warning(QStringLiteral("GD Studio search result missing id on source=%1").arg(source));
+				(*nextFn)();
+				return;
+			}
+			QJsonValue srcVal = first.value(QStringLiteral("source"));
+			QString trackSource;
+			if (srcVal.isString())
+				trackSource = srcVal.toString().trimmed();
+			if (trackSource.compare(QStringLiteral("qq"), Qt::CaseInsensitive) == 0)
+				trackSource = QStringLiteral("tencent");
+			if (trackSource.isEmpty())
+			{
+				trackSource = source;
+				if (trackSource.compare(QStringLiteral("qq"), Qt::CaseInsensitive) == 0)
+					trackSource = QStringLiteral("tencent");
+			}
 
-				QUrl urlUrl = base;
-				QUrlQuery uq;
-				uq.addQueryItem(QStringLiteral("types"), QStringLiteral("url"));
-				uq.addQueryItem(QStringLiteral("source"), trackSource);
-				uq.addQueryItem(QStringLiteral("id"), trackId);
-				uq.addQueryItem(QStringLiteral("br"), QStringLiteral("999"));
-				urlUrl.setQuery(uq);
+			Logger::info(QStringLiteral("GD Studio using trackId=%1, trackSource=%2 for \"%3\"")
+						 .arg(trackId, trackSource, searchQuery));
+
+			QUrl urlUrl = base;
+			QUrlQuery uq;
+			uq.addQueryItem(QStringLiteral("types"), QStringLiteral("url"));
+			uq.addQueryItem(QStringLiteral("source"), trackSource);
+			uq.addQueryItem(QStringLiteral("id"), trackId);
+			uq.addQueryItem(QStringLiteral("br"), QStringLiteral("999"));
+			urlUrl.setQuery(uq);
+
+			Logger::debug(QStringLiteral("GD Studio url request: %1").arg(urlUrl.toString(QUrl::FullyEncoded)));
 
 				HttpRequestOptions urlOpts;
 				urlOpts.url = urlUrl;
 				urlOpts.timeoutMs = 5000;
-				QSharedPointer<RequestToken> urlToken = client->sendWithRetry(urlOpts, 1, 300, [callback, token, nextFn](Result<HttpResponse> urlResult) {
+				QSharedPointer<RequestToken> urlToken = client->sendWithRetry(urlOpts, 1, 300, [finish, token, nextFn, finished](Result<HttpResponse> urlResult) {
 					if (token->isCancelled())
+						return;
+					if (*finished)
 						return;
 					if (!urlResult.ok)
 					{
+						Logger::warning(QStringLiteral("GD Studio url http failed: %1").arg(urlResult.error.message));
 						(*nextFn)();
 						return;
 					}
@@ -421,22 +819,28 @@ QSharedPointer<RequestToken> NeteaseProvider::playUrl(const QString &songId, con
 					QJsonDocument doc = QJsonDocument::fromJson(urlResult.value.body, &pe);
 					if (pe.error != QJsonParseError::NoError || !doc.isObject())
 					{
+						Logger::warning(QStringLiteral("GD Studio url parse failed: %1")
+										.arg(QString::fromUtf8(urlResult.value.body).right(300)));
 						(*nextFn)();
 						return;
 					}
-					QJsonObject o = doc.object();
-					QString urlStr = o.value(QStringLiteral("url")).toString();
-					urlStr.replace('\\', QString());
-					if (urlStr.trimmed().isEmpty())
-					{
-						(*nextFn)();
-						return;
-					}
-					PlayUrl p;
-					p.url = QUrl(urlStr);
-					p.bitrate = o.value(QStringLiteral("br")).toVariant().toInt();
-					p.size = static_cast<qint64>(o.value(QStringLiteral("size")).toVariant().toLongLong());
-					callback(Result<PlayUrl>::success(p));
+				QJsonObject o = doc.object();
+				QString urlStr = o.value(QStringLiteral("url")).toString();
+				urlStr.replace('\\', QString());
+				urlStr = urlStr.trimmed();
+				if (urlStr.isEmpty())
+				{
+					Logger::info(QStringLiteral("GD Studio url empty, try next source"));
+					(*nextFn)();
+					return;
+				}
+				PlayUrl p;
+				p.url = QUrl(urlStr);
+				p.bitrate = o.value(QStringLiteral("br")).toVariant().toInt();
+				p.size = static_cast<qint64>(o.value(QStringLiteral("size")).toVariant().toLongLong());
+				Logger::info(QStringLiteral("GD Studio url resolved: %1, br=%2, size=%3")
+							 .arg(p.url.toString(), QString::number(p.bitrate), QString::number(p.size)));
+				finish(Result<PlayUrl>::success(p));
 				});
 				cancelIfOuterCancelled(urlToken);
 			});
@@ -446,87 +850,166 @@ QSharedPointer<RequestToken> NeteaseProvider::playUrl(const QString &songId, con
 		(*nextFn)();
 	};
 
+
+	// 兼容旧链路：不依赖「搜索/详情」信息，直接尝试用原 songId 向 GD Studio 取 url
+	auto tryGdStudioDirectUrl = [this, songId, finish, token, cancelIfOuterCancelled, finished](const std::function<void()> &onFailed) {
+		if (token->isCancelled())
+			return;
+		if (*finished)
+			return;
+		Logger::info(QStringLiteral("Try GD Studio direct url for songId=%1").arg(songId));
+		QUrl base(QStringLiteral("https://music-api.gdstudio.xyz/api.php"));
+		QUrl urlUrl = base;
+		QUrlQuery uq;
+		uq.addQueryItem(QStringLiteral("types"), QStringLiteral("url"));
+		uq.addQueryItem(QStringLiteral("source"), QStringLiteral("netease"));
+		uq.addQueryItem(QStringLiteral("id"), songId);
+		uq.addQueryItem(QStringLiteral("br"), QStringLiteral("999"));
+		urlUrl.setQuery(uq);
+
+		Logger::debug(QStringLiteral("GD Studio direct url request: %1").arg(urlUrl.toString(QUrl::FullyEncoded)));
+
+		HttpRequestOptions urlOpts;
+		urlOpts.url = urlUrl;
+		urlOpts.timeoutMs = 5000;
+		QSharedPointer<RequestToken> urlToken = client->sendWithRetry(urlOpts, 1, 300, [finish, token, onFailed, finished](Result<HttpResponse> urlResult) {
+			if (token->isCancelled())
+				return;
+			if (*finished)
+				return;
+			if (!urlResult.ok)
+			{
+				Logger::warning(QStringLiteral("GD Studio direct url http failed: %1").arg(urlResult.error.message));
+				onFailed();
+				return;
+			}
+			QJsonParseError pe{};
+			QJsonDocument doc = QJsonDocument::fromJson(urlResult.value.body, &pe);
+			if (pe.error != QJsonParseError::NoError || !doc.isObject())
+			{
+				Logger::warning(QStringLiteral("GD Studio direct url parse failed: %1")
+								.arg(QString::fromUtf8(urlResult.value.body).right(300)));
+				onFailed();
+				return;
+			}
+			QJsonObject o = doc.object();
+			QString urlStr = o.value(QStringLiteral("url")).toString();
+			urlStr.replace('\\', QString());
+			urlStr = urlStr.trimmed();
+			if (urlStr.isEmpty())
+			{
+				Logger::info(QStringLiteral("GD Studio direct url empty, fallback to search"));
+				onFailed();
+				return;
+			}
+			PlayUrl p;
+			p.url = QUrl(urlStr);
+			p.bitrate = o.value(QStringLiteral("br")).toVariant().toInt();
+			p.size = static_cast<qint64>(o.value(QStringLiteral("size")).toVariant().toLongLong());
+			Logger::info(QStringLiteral("GD Studio direct url resolved: %1, br=%2, size=%3")
+						 .arg(p.url.toString(), QString::number(p.bitrate), QString::number(p.size)));
+			finish(Result<PlayUrl>::success(p));
+		});
+		cancelIfOuterCancelled(urlToken);
+	};
+
 	HttpRequestOptions v1;
 	v1.url = buildUrl(QStringLiteral("/song/url/v1"), {{QStringLiteral("id"), songId}, {QStringLiteral("level"), readQualityLevel()}, {QStringLiteral("encodeType"), QStringLiteral("aac")}});
-	QSharedPointer<RequestToken> v1Token = client->sendWithRetry(v1, 2, 500, [this, songId, callback, token, cancelIfOuterCancelled, isUnblockEnabled, tryGdMusicOrUnblock](Result<HttpResponse> result) {
+	// 记录最近一次“非解析类”失败原因，避免最终只返回笼统 404
+	QSharedPointer<Error> lastError = QSharedPointer<Error>::create();
+	QSharedPointer<RequestToken> v1Token = client->sendWithRetry(v1, 2, 500, [this, songId, finish, token, cancelIfOuterCancelled, isUnblockEnabled, tryGdStudioDirectUrl, tryGdMusicOrUnblock, lastError, finished](Result<HttpResponse> result) {
 		if (token->isCancelled())
+			return;
+		if (*finished)
 			return;
 		if (result.ok)
 		{
 			Result<PlayUrl> parsed = parsePlayUrl(result.value.body);
 			if (parsed.ok)
 			{
-				callback(parsed);
+				finish(parsed);
 				return;
 			}
 			if (parsed.error.category != ErrorCategory::UpstreamChange)
 			{
-				callback(Result<PlayUrl>::failure(parsed.error));
+				finish(Result<PlayUrl>::failure(parsed.error));
 				return;
 			}
 		}
 		else
 		{
-			callback(Result<PlayUrl>::failure(result.error));
-			return;
+			*lastError = result.error;
 		}
 
 		HttpRequestOptions legacy;
 		legacy.url = buildUrl(QStringLiteral("/song/url"), {{QStringLiteral("id"), songId}, {QStringLiteral("br"), QStringLiteral("320000")}});
-		QSharedPointer<RequestToken> legacyToken = client->sendWithRetry(legacy, 1, 500, [this, songId, callback, token, isUnblockEnabled, tryGdMusicOrUnblock](Result<HttpResponse> legacyResult) {
+		QSharedPointer<RequestToken> legacyToken = client->sendWithRetry(legacy, 1, 500, [this, songId, finish, token, cancelIfOuterCancelled, isUnblockEnabled, tryGdStudioDirectUrl, tryGdMusicOrUnblock, lastError, finished](Result<HttpResponse> legacyResult) {
 			if (token->isCancelled())
+				return;
+			if (*finished)
 				return;
 			if (legacyResult.ok)
 			{
 				Result<PlayUrl> parsed = parsePlayUrl(legacyResult.value.body);
 				if (parsed.ok)
 				{
-					callback(parsed);
+					finish(parsed);
 					return;
 				}
 				if (parsed.error.category != ErrorCategory::UpstreamChange)
 				{
-					callback(Result<PlayUrl>::failure(parsed.error));
+					finish(Result<PlayUrl>::failure(parsed.error));
 					return;
 				}
 			}
 			else
 			{
-				callback(Result<PlayUrl>::failure(legacyResult.error));
-				return;
+				*lastError = legacyResult.error;
 			}
+
+			auto failByLastErrorOrNotFound = [finish, lastError]() {
+				if (lastError && lastError->code != 0)
+					finish(Result<PlayUrl>::failure(*lastError));
+				else
+				{
+					Error e;
+					e.category = ErrorCategory::UpstreamChange;
+					e.code = 404;
+					e.message = QStringLiteral("Play url not found");
+					finish(Result<PlayUrl>::failure(e));
+				}
+			};
 
 			if (!isUnblockEnabled())
 			{
-				Error e;
-				e.category = ErrorCategory::UpstreamChange;
-				e.code = 404;
-				e.message = QStringLiteral("Play url not found");
-				callback(Result<PlayUrl>::failure(e));
+				failByLastErrorOrNotFound();
 				return;
 			}
 
 			HttpRequestOptions detail;
 			detail.url = buildUrl(QStringLiteral("/song/detail"), {{QStringLiteral("ids"), songId}});
-			QSharedPointer<RequestToken> detailToken = client->sendWithRetry(detail, 1, 500, [this, callback, token, tryGdMusicOrUnblock](Result<HttpResponse> detailResult) {
+			QSharedPointer<RequestToken> detailToken = client->sendWithRetry(detail, 1, 500, [this, finish, token, tryGdStudioDirectUrl, tryGdMusicOrUnblock, failByLastErrorOrNotFound, finished](Result<HttpResponse> detailResult) {
 				if (token->isCancelled())
+					return;
+				if (*finished)
 					return;
 				if (!detailResult.ok)
 				{
-					callback(Result<PlayUrl>::failure(detailResult.error));
+					failByLastErrorOrNotFound();
 					return;
 				}
-				Result<Song> parsedSong = parseSongDetail(detailResult.value.body);
+				Result<Song> parsedSong = this->parseSongDetail(detailResult.value.body);
 				if (!parsedSong.ok)
 				{
-					callback(Result<PlayUrl>::failure(parsedSong.error));
+					failByLastErrorOrNotFound();
 					return;
 				}
-				tryGdMusicOrUnblock(parsedSong.value);
+				Song song = parsedSong.value;
+				tryGdStudioDirectUrl([tryGdMusicOrUnblock, song]() mutable {
+					tryGdMusicOrUnblock(song);
+				});
 			});
-			QObject::connect(token.data(), &RequestToken::cancelled, detailToken.data(), [detailToken]() {
-				detailToken->cancel();
-			});
+			cancelIfOuterCancelled(detailToken);
 		});
 		cancelIfOuterCancelled(legacyToken);
 		QObject::connect(token.data(), &RequestToken::cancelled, legacyToken.data(), [legacyToken]() {
@@ -737,6 +1220,36 @@ Result<PlayUrl> NeteaseProvider::parsePlayUrl(const QByteArray &body) const
 		return Result<PlayUrl>::failure(e);
 	}
 	QJsonObject o = arr.first().toObject();
+	bool isTrial = false;
+	int trialStart = 0;
+	int trialEnd = 0;
+	QJsonValue freeTrialInfo = o.value(QStringLiteral("freeTrialInfo"));
+	if (freeTrialInfo.isObject())
+	{
+		QJsonObject ti = freeTrialInfo.toObject();
+		trialStart = ti.value(QStringLiteral("start")).toInt();
+		trialEnd = ti.value(QStringLiteral("end")).toInt();
+		if (trialEnd > trialStart)
+			isTrial = true;
+	}
+	QJsonValue freeTrialPrivilege = o.value(QStringLiteral("freeTrialPrivilege"));
+	if (!isTrial && freeTrialPrivilege.isObject())
+	{
+		QJsonObject tp = freeTrialPrivilege.toObject();
+		int listenType = tp.value(QStringLiteral("listenType")).toInt();
+		if (listenType > 0)
+			isTrial = true;
+	}
+	if (isTrial)
+	{
+		Error e;
+		e.category = ErrorCategory::UpstreamChange;
+		e.code = 402;
+		e.message = QStringLiteral("Official play url is trial");
+		if (trialEnd > trialStart)
+			e.detail = QStringLiteral("trial=%1-%2").arg(trialStart).arg(trialEnd);
+		return Result<PlayUrl>::failure(e);
+	}
 	QString urlStr = o.value(QStringLiteral("url")).toString();
 	if (urlStr.trimmed().isEmpty())
 	{

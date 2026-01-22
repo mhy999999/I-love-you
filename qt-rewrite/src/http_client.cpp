@@ -171,7 +171,7 @@ void HttpClient::sendOnce(const HttpRequestOptions &options, const QSharedPointe
 	// 根据 method 选择 GET/POST/PUT
 	QNetworkReply *reply = nullptr;
 	const QByteArray method = options.method.isEmpty() ? QByteArray("GET") : options.method.toUpper();
-	Logger::debug(QStringLiteral("HTTP %1 %2").arg(QString::fromLatin1(method)).arg(options.url.toString()));
+	Logger::debug(QStringLiteral("HTTP %1 %2").arg(QString::fromLatin1(method)).arg(options.url.toString(QUrl::FullyEncoded)));
 	if (method == "POST")
 		reply = manager.post(request, options.body);
 	else if (method == "PUT")

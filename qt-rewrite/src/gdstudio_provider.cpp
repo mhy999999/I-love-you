@@ -134,6 +134,8 @@ QSharedPointer<RequestToken> GdStudioProvider::playUrl(const QString &songId, co
 	{
 		idPart = songId.trimmed();
 	}
+	if (source.compare(QStringLiteral("qq"), Qt::CaseInsensitive) == 0)
+		source = QStringLiteral("tencent");
 	if (idPart.isEmpty())
 	{
 		Error e;

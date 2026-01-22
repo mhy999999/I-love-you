@@ -1,0 +1,38 @@
+[
+  {
+    "description": "Standard exact match",
+    "input": {
+      "keyword": "海阔天空",
+      "artist": "Beyond",
+      "duration": 324000
+    },
+    "expect": {
+      "match_type": "exact",
+      "min_score": 80
+    }
+  },
+  {
+    "description": "Cover version avoidance (Duration mismatch)",
+    "input": {
+      "keyword": "海阔天空",
+      "artist": "Unknown Cover Artist",
+      "duration": 200000
+    },
+    "expect": {
+      "match_type": "none_or_low_score",
+      "max_score": 0
+    }
+  },
+  {
+    "description": "Live version handling (Title mismatch)",
+    "input": {
+      "keyword": "海阔天空 (Live)",
+      "artist": "Beyond",
+      "duration": 324000
+    },
+    "expect": {
+      "match_type": "fuzzy",
+      "min_score": 60
+    }
+  }
+]

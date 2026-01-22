@@ -101,6 +101,13 @@ private:
 	bool m_loading = false;
 	QUrl m_currentUrl;
 	bool m_playing = false;
+	// 递增请求序号：用于在 UI 层丢弃过期回调，规避取消/竞态导致的错歌错图等问题
+	quint64 m_searchRequestId = 0;
+	quint64 m_playRequestId = 0;
+	quint64 m_lyricRequestId = 0;
+	quint64 m_coverRequestId = 0;
+	quint64 m_playlistDetailRequestId = 0;
+	quint64 m_playlistTracksRequestId = 0;
 	qint64 m_positionMs = 0;
 	qint64 m_durationMs = 0;
 	int m_currentLyricIndex = -1;
