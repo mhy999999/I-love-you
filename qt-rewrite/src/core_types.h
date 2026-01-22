@@ -1,4 +1,5 @@
-﻿#pragma once
+﻿// 核心领域模型与通用结果类型定义
+#pragma once
 
 #include <QList>
 #include <QString>
@@ -7,12 +8,14 @@
 namespace App
 {
 
+// 艺术家信息
 struct Artist
 {
 	QString id;
 	QString name;
 };
 
+// 专辑信息
 struct Album
 {
 	QString id;
@@ -20,6 +23,7 @@ struct Album
 	QUrl coverUrl;
 };
 
+// 播放地址信息（单个音频源）
 struct PlayUrl
 {
 	QUrl url;
@@ -27,17 +31,20 @@ struct PlayUrl
 	qint64 size = 0;
 };
 
+// 单行歌词（时间戳 + 文本）
 struct LyricLine
 {
 	qint64 timeMs = 0;
 	QString text;
 };
 
+// 完整歌词，由多行组成
 struct Lyric
 {
 	QList<LyricLine> lines;
 };
 
+// 歌曲基础信息
 struct Song
 {
 	QString id;
@@ -48,6 +55,7 @@ struct Song
 	PlayUrl playUrl;
 };
 
+// 歌单信息，包含一组歌曲
 struct Playlist
 {
 	QString id;
@@ -55,6 +63,7 @@ struct Playlist
 	QList<Song> songs;
 };
 
+// 错误分类，用于统一错误上报
 enum class ErrorCategory
 {
 	Network,
@@ -65,6 +74,7 @@ enum class ErrorCategory
 	Unknown
 };
 
+// 统一错误对象
 struct Error
 {
 	ErrorCategory category = ErrorCategory::Unknown;
@@ -73,6 +83,7 @@ struct Error
 	QString detail;
 };
 
+// 泛型结果类型，用于携带返回值或错误信息
 template <typename T>
 struct Result
 {
@@ -98,4 +109,3 @@ struct Result
 };
 
 }
-

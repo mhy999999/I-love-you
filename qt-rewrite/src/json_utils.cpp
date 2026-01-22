@@ -1,8 +1,11 @@
+// JsonUtils 实现：统一 JSON 字段读取与错误构造
 #include "json_utils.h"
 
+// 匿名命名空间内的辅助模板函数，仅在当前编译单元可见
 namespace
 {
 
+// 构造“缺少字段”错误结果
 template <typename T>
 App::Result<T> missingField(const QString &key)
 {
@@ -13,6 +16,7 @@ App::Result<T> missingField(const QString &key)
 	return App::Result<T>::failure(e);
 }
 
+// 构造“类型不匹配”错误结果
 template <typename T>
 App::Result<T> typeError(const QString &key, const QString &expected)
 {
@@ -30,6 +34,7 @@ namespace App
 namespace Json
 {
 
+// 宽容读取字符串字段：接受 string/number/bool，并统一输出 QString
 Result<QString> readString(const QJsonObject &obj, const QString &key, bool required)
 {
 	if (!obj.contains(key) || obj.value(key).isNull())
@@ -48,6 +53,7 @@ Result<QString> readString(const QJsonObject &obj, const QString &key, bool requ
 	return typeError<QString>(key, QStringLiteral("string"));
 }
 
+// 宽容读取 64 位整数：接受 number 或字符串数字
 Result<qint64> readInt64(const QJsonObject &obj, const QString &key, bool required)
 {
 	if (!obj.contains(key) || obj.value(key).isNull())
@@ -69,6 +75,7 @@ Result<qint64> readInt64(const QJsonObject &obj, const QString &key, bool requir
 	return typeError<qint64>(key, QStringLiteral("integer"));
 }
 
+// 基于 readInt64 实现 32 位整数读取
 Result<int> readInt(const QJsonObject &obj, const QString &key, bool required)
 {
 	Result<qint64> r = readInt64(obj, key, required);
@@ -77,6 +84,7 @@ Result<int> readInt(const QJsonObject &obj, const QString &key, bool required)
 	return Result<int>::success(static_cast<int>(r.value));
 }
 
+// 宽容读取浮点数：接受 number 或字符串数字
 Result<double> readDouble(const QJsonObject &obj, const QString &key, bool required)
 {
 	if (!obj.contains(key) || obj.value(key).isNull())
@@ -98,6 +106,7 @@ Result<double> readDouble(const QJsonObject &obj, const QString &key, bool requi
 	return typeError<double>(key, QStringLiteral("number"));
 }
 
+// 宽容读取布尔值：接受 bool/number/string 等多种表示
 Result<bool> readBool(const QJsonObject &obj, const QString &key, bool required)
 {
 	if (!obj.contains(key) || obj.value(key).isNull())
@@ -122,6 +131,7 @@ Result<bool> readBool(const QJsonObject &obj, const QString &key, bool required)
 	return typeError<bool>(key, QStringLiteral("bool"));
 }
 
+// 读取子对象字段
 Result<QJsonObject> readObject(const QJsonObject &obj, const QString &key, bool required)
 {
 	if (!obj.contains(key) || obj.value(key).isNull())
@@ -136,6 +146,7 @@ Result<QJsonObject> readObject(const QJsonObject &obj, const QString &key, bool 
 	return typeError<QJsonObject>(key, QStringLiteral("object"));
 }
 
+// 读取数组字段
 Result<QJsonArray> readArray(const QJsonObject &obj, const QString &key, bool required)
 {
 	if (!obj.contains(key) || obj.value(key).isNull())
@@ -152,4 +163,3 @@ Result<QJsonArray> readArray(const QJsonObject &obj, const QString &key, bool re
 
 }
 }
-
