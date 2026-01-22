@@ -26,6 +26,7 @@ qt_add_executable(appqtrewrite
 	src/provider_manager.cpp
 	src/song_list_model.cpp
 	src/music_controller.cpp
+	src/provider.h
 )
 
 qt_add_qml_module(appqtrewrite
