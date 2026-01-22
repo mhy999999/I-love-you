@@ -19,7 +19,8 @@ public:
 		NameRole,
 		ArtistsRole,
 		AlbumRole,
-		DurationRole
+			DurationRole,
+			CoverUrlRole
 	};
 
 	explicit SongListModel(QObject *parent = nullptr);
@@ -37,4 +38,3 @@ private:
 };
 
 }
-

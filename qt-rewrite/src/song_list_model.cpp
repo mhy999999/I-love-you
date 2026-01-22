@@ -37,6 +37,8 @@ QVariant SongListModel::data(const QModelIndex &index, int role) const
 		return s.album.name;
 	case DurationRole:
 		return static_cast<qint64>(s.durationMs);
+	case CoverUrlRole:
+		return s.album.coverUrl;
 	default:
 		return {};
 	}
@@ -50,6 +52,7 @@ QHash<int, QByteArray> SongListModel::roleNames() const
 	roles[ArtistsRole] = "artists";
 	roles[AlbumRole] = "album";
 	roles[DurationRole] = "duration";
+	roles[CoverUrlRole] = "coverUrl";
 	return roles;
 }
 
@@ -79,8 +82,8 @@ QVariantMap SongListModel::get(int row) const
 	map.insert(QStringLiteral("artists"), names.join(QStringLiteral(" / ")));
 	map.insert(QStringLiteral("album"), s.album.name);
 	map.insert(QStringLiteral("duration"), static_cast<qint64>(s.durationMs));
+	map.insert(QStringLiteral("coverUrl"), s.album.coverUrl);
 	return map;
 }
 
 }
-

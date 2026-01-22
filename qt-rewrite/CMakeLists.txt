@@ -22,9 +22,11 @@ qt_add_executable(appqtrewrite
 	src/logger.cpp
 	src/http_client.cpp
 	src/json_utils.cpp
+	src/disk_cache.cpp
 	src/netease_provider.cpp
 	src/provider_manager.cpp
 	src/song_list_model.cpp
+	src/lyric_list_model.cpp
 	src/music_controller.cpp
 	src/provider.h
 )

@@ -11,6 +11,9 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QRegularExpression>
 #include <QSettings>
 #include <QTcpServer>
@@ -286,7 +289,11 @@ MusicController::MusicController(QObject *parent)
 	, httpClient(this)
 	, providerManager(this)
 	, m_songsModel(this)
+	, m_lyricModel(this)
+	, m_playlistModel(this)
 	, m_player(this)
+	, imageCache(QStringLiteral("images"), 200LL * 1024 * 1024)
+	, lyricCache(QStringLiteral("lyrics"), 20LL * 1024 * 1024)
 {
 	QMap<QByteArray, QByteArray> headers;
 	headers.insert("Accept", "application/json");
@@ -346,11 +353,28 @@ MusicController::MusicController(QObject *parent)
 	QObject::connect(&m_player, &QMediaPlayer::playbackStateChanged, this, [this](QMediaPlayer::PlaybackState state) {
 		setPlaying(state == QMediaPlayer::PlayingState);
 	});
+	QObject::connect(&m_player, &QMediaPlayer::positionChanged, this, [this](qint64 pos) {
+		setPositionMs(pos);
+		updateCurrentLyricIndexByPosition(pos);
+	});
+	QObject::connect(&m_player, &QMediaPlayer::durationChanged, this, [this](qint64 dur) {
+		setDurationMs(dur);
+	});
 }
 
 SongListModel *MusicController::songsModel()
 {
 	return &m_songsModel;
+}
+
+LyricListModel *MusicController::lyricModel()
+{
+	return &m_lyricModel;
+}
+
+SongListModel *MusicController::playlistModel()
+{
+	return &m_playlistModel;
 }
 
 bool MusicController::loading() const
@@ -373,6 +397,41 @@ int MusicController::volume() const
 	if (!m_player.audioOutput())
 		return 50;
 	return static_cast<int>(m_player.audioOutput()->volume() * 100.0);
+}
+
+qint64 MusicController::positionMs() const
+{
+	return m_positionMs;
+}
+
+qint64 MusicController::durationMs() const
+{
+	return m_durationMs;
+}
+
+int MusicController::currentLyricIndex() const
+{
+	return m_currentLyricIndex;
+}
+
+QUrl MusicController::coverSource() const
+{
+	return m_coverSource;
+}
+
+bool MusicController::playlistLoading() const
+{
+	return m_playlistLoading;
+}
+
+QString MusicController::playlistName() const
+{
+	return m_playlistName;
+}
+
+bool MusicController::playlistHasMore() const
+{
+	return m_playlistHasMore;
 }
 
 void MusicController::setVolume(int v)
@@ -399,6 +458,199 @@ void MusicController::setCurrentUrl(const QUrl &url)
 	m_currentUrl = url;
 	m_player.setSource(m_currentUrl);
 	emit currentUrlChanged();
+}
+
+void MusicController::setPositionMs(qint64 v)
+{
+	if (m_positionMs == v)
+		return;
+	m_positionMs = v;
+	emit positionMsChanged();
+}
+
+void MusicController::setDurationMs(qint64 v)
+{
+	if (m_durationMs == v)
+		return;
+	m_durationMs = v;
+	emit durationMsChanged();
+}
+
+void MusicController::setCurrentLyricIndex(int v)
+{
+	if (m_currentLyricIndex == v)
+		return;
+	m_currentLyricIndex = v;
+	emit currentLyricIndexChanged();
+}
+
+void MusicController::setCoverSource(const QUrl &url)
+{
+	if (m_coverSource == url)
+		return;
+	m_coverSource = url;
+	emit coverSourceChanged();
+}
+
+void MusicController::setPlaylistLoading(bool v)
+{
+	if (m_playlistLoading == v)
+		return;
+	m_playlistLoading = v;
+	emit playlistLoadingChanged();
+}
+
+void MusicController::setPlaylistName(const QString &name)
+{
+	if (m_playlistName == name)
+		return;
+	m_playlistName = name;
+	emit playlistNameChanged();
+}
+
+void MusicController::setPlaylistHasMore(bool v)
+{
+	if (m_playlistHasMore == v)
+		return;
+	m_playlistHasMore = v;
+	emit playlistHasMoreChanged();
+}
+
+void MusicController::updateCurrentLyricIndexByPosition(qint64 posMs)
+{
+	const QList<LyricLine> &lines = m_lyricModel.lyric().lines;
+	if (lines.isEmpty())
+	{
+		setCurrentLyricIndex(-1);
+		return;
+	}
+	bool anyTimestamp = false;
+	for (const LyricLine &l : lines)
+	{
+		if (l.timeMs > 0)
+		{
+			anyTimestamp = true;
+			break;
+		}
+	}
+	if (!anyTimestamp)
+	{
+		setCurrentLyricIndex(0);
+		return;
+	}
+	int lo = 0;
+	int hi = lines.size() - 1;
+	int best = 0;
+	while (lo <= hi)
+	{
+		int mid = (lo + hi) / 2;
+		qint64 t = lines.at(mid).timeMs;
+		if (t <= posMs)
+		{
+			best = mid;
+			lo = mid + 1;
+		}
+		else
+		{
+			hi = mid - 1;
+		}
+	}
+	setCurrentLyricIndex(best);
+}
+
+void MusicController::clearLyric()
+{
+	Lyric empty;
+	m_lyricModel.setLyric(empty);
+	setCurrentLyricIndex(-1);
+}
+
+bool MusicController::lyricFromCache(const QString &songId, Lyric &outLyric)
+{
+	QByteArray bytes;
+	if (!lyricCache.get(songId, bytes))
+		return false;
+	QJsonParseError err{};
+	QJsonDocument doc = QJsonDocument::fromJson(bytes, &err);
+	if (err.error != QJsonParseError::NoError || !doc.isObject())
+		return false;
+	QJsonObject root = doc.object();
+	QJsonArray arr = root.value(QStringLiteral("lines")).toArray();
+	Lyric lyric;
+	lyric.lines.reserve(arr.size());
+	for (const QJsonValue &v : arr)
+	{
+		QJsonObject o = v.toObject();
+		LyricLine ll;
+		ll.timeMs = static_cast<qint64>(o.value(QStringLiteral("t")).toDouble());
+		ll.text = o.value(QStringLiteral("x")).toString();
+		lyric.lines.append(ll);
+	}
+	outLyric = lyric;
+	return true;
+}
+
+void MusicController::saveLyricToCache(const QString &songId, const Lyric &lyric)
+{
+	QJsonArray arr;
+	arr.reserve(lyric.lines.size());
+	for (const LyricLine &ll : lyric.lines)
+	{
+		QJsonObject o;
+		o.insert(QStringLiteral("t"), static_cast<double>(ll.timeMs));
+		o.insert(QStringLiteral("x"), ll.text);
+		arr.append(o);
+	}
+	QJsonObject root;
+	root.insert(QStringLiteral("lines"), arr);
+	QJsonDocument doc(root);
+	lyricCache.put(songId, doc.toJson(QJsonDocument::Compact));
+}
+
+void MusicController::requestLyric(const QString &songId)
+{
+	if (lyricToken)
+		lyricToken->cancel();
+	Lyric cached;
+	if (lyricFromCache(songId, cached))
+	{
+		m_lyricModel.setLyric(cached);
+		updateCurrentLyricIndexByPosition(m_player.position());
+		return;
+	}
+	lyricToken = providerManager.lyric(songId, [this, songId](Result<Lyric> result) {
+		if (!result.ok)
+		{
+			clearLyric();
+			return;
+		}
+		m_lyricModel.setLyric(result.value);
+		saveLyricToCache(songId, result.value);
+		updateCurrentLyricIndexByPosition(m_player.position());
+	});
+}
+
+void MusicController::requestCover(const QUrl &coverUrl)
+{
+	if (!coverUrl.isValid() || coverUrl.isEmpty())
+	{
+		setCoverSource({});
+		return;
+	}
+	QString key = coverUrl.toString();
+	if (imageCache.contains(key))
+	{
+		setCoverSource(imageCache.fileUrlForKey(key));
+		return;
+	}
+	if (coverToken)
+		coverToken->cancel();
+	coverToken = providerManager.cover(coverUrl, [this, key](Result<QByteArray> result) {
+		if (!result.ok)
+			return;
+		imageCache.put(key, result.value);
+		setCoverSource(imageCache.fileUrlForKey(key));
+	});
 }
 
 void MusicController::setPlaying(bool v)
@@ -439,6 +691,14 @@ void MusicController::playIndex(int index)
 	QVariantMap songMap = m_songsModel.get(index);
 	QString songId = songMap.value(QStringLiteral("songId")).toString();
 	Logger::info(QStringLiteral("Play index %1, songId=%2").arg(index).arg(songId));
+	clearLyric();
+	setCoverSource({});
+	const QList<Song> &songs = m_songsModel.songs();
+	if (index >= 0 && index < songs.size())
+	{
+		requestCover(songs.at(index).album.coverUrl);
+		requestLyric(songId);
+	}
 	setLoading(true);
 	playUrlToken = providerManager.playUrl(songId, [this](Result<PlayUrl> result) {
 		setLoading(false);
@@ -451,6 +711,65 @@ void MusicController::playIndex(int index)
 		setCurrentUrl(result.value.url);
 		m_player.play();
 	});
+}
+
+void MusicController::loadPlaylist(const QString &playlistId)
+{
+	QString id = playlistId.trimmed();
+	if (id.isEmpty())
+		return;
+	if (playlistDetailToken)
+		playlistDetailToken->cancel();
+	if (playlistTracksToken)
+		playlistTracksToken->cancel();
+	m_playlistId = id;
+	m_playlistOffset = 0;
+	m_playlistTotal = 0;
+	setPlaylistHasMore(false);
+	setPlaylistLoading(true);
+	m_playlistModel.setSongs({});
+	playlistDetailToken = providerManager.playlistDetail(id, [this](Result<PlaylistMeta> result) {
+		if (!result.ok)
+		{
+			setPlaylistLoading(false);
+			emit errorOccurred(result.error.message);
+			return;
+		}
+		setPlaylistName(result.value.name);
+		m_playlistTotal = result.value.trackCount;
+		requestCover(result.value.coverUrl);
+		loadMorePlaylist();
+	});
+}
+
+void MusicController::loadMorePlaylist()
+{
+	if (m_playlistId.isEmpty())
+		return;
+	if (playlistTracksToken)
+		playlistTracksToken->cancel();
+	setPlaylistLoading(true);
+	int limit = m_playlistLimit > 0 ? m_playlistLimit : 50;
+	int offset = m_playlistOffset;
+	playlistTracksToken = providerManager.playlistTracks(m_playlistId, limit, offset, [this, limit, offset](Result<PlaylistTracksPage> result) {
+		setPlaylistLoading(false);
+		if (!result.ok)
+		{
+			emit errorOccurred(result.error.message);
+			return;
+		}
+		QList<Song> combined = m_playlistModel.songs();
+		combined.append(result.value.songs);
+		m_playlistModel.setSongs(combined);
+		m_playlistOffset = offset + result.value.songs.size();
+		int total = m_playlistTotal > 0 ? m_playlistTotal : result.value.total;
+		setPlaylistHasMore(m_playlistOffset < total);
+	});
+}
+
+void MusicController::importPlaylistToQueue()
+{
+	m_songsModel.setSongs(m_playlistModel.songs());
 }
 
 void MusicController::pause()
