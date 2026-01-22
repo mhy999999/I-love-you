@@ -13,6 +13,15 @@ Window {
 
 	property string lastError: ""
 
+	function formatMs(ms) {
+		var v = Math.max(0, Math.floor(ms || 0))
+		var totalSec = Math.floor(v / 1000)
+		var sec = totalSec % 60
+		var min = Math.floor(totalSec / 60)
+		var s = sec < 10 ? ("0" + sec) : ("" + sec)
+		return min + ":" + s
+	}
+
 	Connections {
 		target: musicController
 		function onErrorOccurred(message) {
@@ -143,6 +152,39 @@ Window {
 										lyricView.positionViewAtIndex(musicController.currentLyricIndex, ListView.Center)
 								}
 							}
+						}
+					}
+
+					Row {
+						spacing: 8
+						anchors.horizontalCenter: parent.horizontalCenter
+						width: parent.width
+						Text {
+							color: "#cccccc"
+							text: musicController ? formatMs(progressSlider.pressed ? progressSlider.value : musicController.positionMs) : "0:00"
+							width: 48
+							horizontalAlignment: Text.AlignRight
+						}
+						Slider {
+							id: progressSlider
+							from: 0
+							to: musicController ? Math.max(0, musicController.durationMs) : 0
+							enabled: musicController && musicController.durationMs > 0
+							width: parent.width - 160
+							onMoved: if (pressed && musicController) musicController.seek(value)
+							onPressedChanged: if (!pressed && musicController) musicController.seek(value)
+							Binding {
+								target: progressSlider
+								property: "value"
+								value: musicController ? musicController.positionMs : 0
+								when: !progressSlider.pressed
+							}
+						}
+						Text {
+							color: "#cccccc"
+							text: musicController ? formatMs(musicController.durationMs) : "0:00"
+							width: 48
+							horizontalAlignment: Text.AlignLeft
 						}
 					}
 

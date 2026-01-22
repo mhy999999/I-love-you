@@ -47,6 +47,8 @@ struct Lyric
 // 歌曲基础信息
 struct Song
 {
+	QString providerId;
+	QString source;
 	QString id;
 	QString name;
 	QList<Artist> artists;

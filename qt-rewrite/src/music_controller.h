@@ -11,6 +11,7 @@
 #include "disk_cache.h"
 #include "http_client.h"
 #include "lyric_list_model.h"
+#include "gdstudio_provider.h"
 #include "netease_provider.h"
 #include "provider_manager.h"
 #include "song_list_model.h"
@@ -57,6 +58,7 @@ public:
 
 	Q_INVOKABLE void search(const QString &keyword);
 	Q_INVOKABLE void playIndex(int index);
+	Q_INVOKABLE void seek(qint64 positionMs);
 	Q_INVOKABLE void pause();
 	Q_INVOKABLE void resume();
 	Q_INVOKABLE void stop();
@@ -81,6 +83,7 @@ signals:
 private:
 	HttpClient httpClient;
 	ProviderManager providerManager;
+	GdStudioProvider *gdStudioProvider = nullptr;
 	NeteaseProvider *neteaseProvider = nullptr;
 	SongListModel m_songsModel;
 	LyricListModel m_lyricModel;
@@ -120,11 +123,11 @@ private:
 	void setPlaylistName(const QString &name);
 	void setPlaylistHasMore(bool v);
 	void updateCurrentLyricIndexByPosition(qint64 posMs);
-	void requestLyric(const QString &songId);
+	void requestLyric(const QString &providerId, const QString &songId);
 	void requestCover(const QUrl &coverUrl);
 	void clearLyric();
-	bool lyricFromCache(const QString &songId, Lyric &outLyric);
-	void saveLyricToCache(const QString &songId, const Lyric &lyric);
+	bool lyricFromCache(const QString &key, Lyric &outLyric);
+	void saveLyricToCache(const QString &key, const Lyric &lyric);
 	bool m_playlistHasMore = false;
 };
 

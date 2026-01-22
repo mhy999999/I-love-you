@@ -6,6 +6,7 @@
 #include <QDir>
 #include <QElapsedTimer>
 #include <QEventLoop>
+#include <QFile>
 #include <QFileInfo>
 #include <QHostAddress>
 #include <QNetworkAccessManager>
@@ -110,7 +111,10 @@ bool ensureEmbeddedMusicApiDeps(const QString &apiDir, bool autoInstall)
 {
 	QDir dir(apiDir);
 	QString nodeModulesPath = dir.filePath(QStringLiteral("node_modules"));
-	if (QFileInfo::exists(nodeModulesPath))
+	QString ncmApiPkg = dir.filePath(QStringLiteral("node_modules/netease-cloud-music-api-alger/package.json"));
+	QString unblockPkg = dir.filePath(QStringLiteral("node_modules/@unblockneteasemusic/server/package.json"));
+	bool depsOk = QFileInfo::exists(ncmApiPkg) && QFileInfo::exists(unblockPkg);
+	if (depsOk)
 		return true;
 
 	if (!autoInstall)
@@ -171,6 +175,14 @@ bool startNeteaseMusicApiOnPort(QObject *parent, int port, const QString &apiDir
 	{
 		Logger::warning(QStringLiteral("Embedded music API directory not found; cannot start local music API"));
 		return false;
+	}
+
+	QString anonTokenPath = QDir(QDir::tempPath()).filePath(QStringLiteral("anonymous_token"));
+	if (!QFileInfo::exists(anonTokenPath))
+	{
+		QFile f(anonTokenPath);
+		if (f.open(QIODevice::WriteOnly))
+			f.close();
 	}
 
 	if (!ensureEmbeddedMusicApiDeps(apiDir, autoInstall))
@@ -343,10 +355,12 @@ MusicController::MusicController(QObject *parent)
 		}
 	}
 	neteaseProvider = new NeteaseProvider(&httpClient, apiBase, &providerManager);
+	gdStudioProvider = new GdStudioProvider(&httpClient, &providerManager);
 	providerManager.registerProvider(neteaseProvider);
+	providerManager.registerProvider(gdStudioProvider);
 	ProviderManagerConfig cfg;
-	cfg.providerOrder = QStringList() << neteaseProvider->id();
-	cfg.fallbackEnabled = false;
+	cfg.providerOrder = QStringList() << neteaseProvider->id() << gdStudioProvider->id();
+	cfg.fallbackEnabled = true;
 	providerManager.setConfig(cfg);
 
 	m_player.setAudioOutput(new QAudioOutput(this));
@@ -565,10 +579,10 @@ void MusicController::clearLyric()
 	setCurrentLyricIndex(-1);
 }
 
-bool MusicController::lyricFromCache(const QString &songId, Lyric &outLyric)
+bool MusicController::lyricFromCache(const QString &key, Lyric &outLyric)
 {
 	QByteArray bytes;
-	if (!lyricCache.get(songId, bytes))
+	if (!lyricCache.get(key, bytes))
 		return false;
 	QJsonParseError err{};
 	QJsonDocument doc = QJsonDocument::fromJson(bytes, &err);
@@ -590,7 +604,7 @@ bool MusicController::lyricFromCache(const QString &songId, Lyric &outLyric)
 	return true;
 }
 
-void MusicController::saveLyricToCache(const QString &songId, const Lyric &lyric)
+void MusicController::saveLyricToCache(const QString &key, const Lyric &lyric)
 {
 	QJsonArray arr;
 	for (const LyricLine &ll : lyric.lines)
@@ -603,30 +617,31 @@ void MusicController::saveLyricToCache(const QString &songId, const Lyric &lyric
 	QJsonObject root;
 	root.insert(QStringLiteral("lines"), arr);
 	QJsonDocument doc(root);
-	lyricCache.put(songId, doc.toJson(QJsonDocument::Compact));
+	lyricCache.put(key, doc.toJson(QJsonDocument::Compact));
 }
 
-void MusicController::requestLyric(const QString &songId)
+void MusicController::requestLyric(const QString &providerId, const QString &songId)
 {
 	if (lyricToken)
 		lyricToken->cancel();
+	QString key = providerId + QStringLiteral(":") + songId;
 	Lyric cached;
-	if (lyricFromCache(songId, cached))
+	if (lyricFromCache(key, cached))
 	{
 		m_lyricModel.setLyric(cached);
 		updateCurrentLyricIndexByPosition(m_player.position());
 		return;
 	}
-	lyricToken = providerManager.lyric(songId, [this, songId](Result<Lyric> result) {
+	lyricToken = providerManager.lyric(songId, [this, key](Result<Lyric> result) {
 		if (!result.ok)
 		{
 			clearLyric();
 			return;
 		}
 		m_lyricModel.setLyric(result.value);
-		saveLyricToCache(songId, result.value);
+		saveLyricToCache(key, result.value);
 		updateCurrentLyricIndexByPosition(m_player.position());
-	});
+	}, QStringList() << providerId);
 }
 
 void MusicController::requestCover(const QUrl &coverUrl)
@@ -687,19 +702,26 @@ void MusicController::playIndex(int index)
 		return;
 	if (playUrlToken)
 		playUrlToken->cancel();
-	QVariantMap songMap = m_songsModel.get(index);
-	QString songId = songMap.value(QStringLiteral("songId")).toString();
-	Logger::info(QStringLiteral("Play index %1, songId=%2").arg(index).arg(songId));
+	const QList<Song> &songs = m_songsModel.songs();
+	if (index < 0 || index >= songs.size())
+		return;
+	const Song &song = songs.at(index);
+	QString songId = song.id;
+	QString providerId = song.providerId;
+	QString source = song.source;
+	Logger::info(QStringLiteral("Play index %1, provider=%2, songId=%3").arg(index).arg(providerId).arg(songId));
 	clearLyric();
 	setCoverSource({});
-	const QList<Song> &songs = m_songsModel.songs();
-	if (index >= 0 && index < songs.size())
-	{
-		requestCover(songs.at(index).album.coverUrl);
-		requestLyric(songId);
-	}
+	requestCover(song.album.coverUrl);
+	if (providerId == QStringLiteral("netease"))
+		requestLyric(providerId, songId);
+	else if (source == QStringLiteral("netease"))
+		requestLyric(QStringLiteral("netease"), songId);
 	setLoading(true);
-	playUrlToken = providerManager.playUrl(songId, [this](Result<PlayUrl> result) {
+	QString opaqueSongId = songId;
+	if (providerId == QStringLiteral("gdstudio"))
+		opaqueSongId = source + QStringLiteral(":") + songId;
+	playUrlToken = providerManager.playUrl(opaqueSongId, [this](Result<PlayUrl> result) {
 		setLoading(false);
 		if (!result.ok)
 		{
@@ -709,7 +731,7 @@ void MusicController::playIndex(int index)
 		}
 		setCurrentUrl(result.value.url);
 		m_player.play();
-	});
+	}, QStringList() << providerId);
 }
 
 void MusicController::loadPlaylist(const QString &playlistId)
@@ -769,6 +791,16 @@ void MusicController::loadMorePlaylist()
 void MusicController::importPlaylistToQueue()
 {
 	m_songsModel.setSongs(m_playlistModel.songs());
+}
+
+void MusicController::seek(qint64 positionMs)
+{
+	if (positionMs < 0)
+		positionMs = 0;
+	qint64 dur = m_player.duration();
+	if (dur > 0 && positionMs > dur)
+		positionMs = dur;
+	m_player.setPosition(positionMs);
 }
 
 void MusicController::pause()

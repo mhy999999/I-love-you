@@ -16,6 +16,8 @@ public:
 	enum Roles
 	{
 		IdRole = Qt::UserRole + 1,
+		ProviderIdRole,
+		SourceRole,
 		NameRole,
 		ArtistsRole,
 		AlbumRole,

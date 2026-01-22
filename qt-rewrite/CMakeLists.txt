@@ -24,6 +24,7 @@ qt_add_executable(appqtrewrite
 	src/json_utils.cpp
 	src/disk_cache.cpp
 	src/netease_provider.cpp
+	src/gdstudio_provider.cpp
 	src/provider_manager.cpp
 	src/song_list_model.cpp
 	src/lyric_list_model.cpp

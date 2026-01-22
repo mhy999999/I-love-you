@@ -25,6 +25,10 @@ QVariant SongListModel::data(const QModelIndex &index, int role) const
 	{
 	case IdRole:
 		return s.id;
+	case ProviderIdRole:
+		return s.providerId;
+	case SourceRole:
+		return s.source;
 	case NameRole:
 		return s.name;
 	case ArtistsRole: {
@@ -48,6 +52,8 @@ QHash<int, QByteArray> SongListModel::roleNames() const
 {
 	QHash<int, QByteArray> roles;
 	roles[IdRole] = "songId";
+	roles[ProviderIdRole] = "providerId";
+	roles[SourceRole] = "source";
 	roles[NameRole] = "title";
 	roles[ArtistsRole] = "artists";
 	roles[AlbumRole] = "album";
@@ -75,6 +81,8 @@ QVariantMap SongListModel::get(int row) const
 		return map;
 	const Song &s = m_songs.at(row);
 	map.insert(QStringLiteral("songId"), s.id);
+	map.insert(QStringLiteral("providerId"), s.providerId);
+	map.insert(QStringLiteral("source"), s.source);
 	map.insert(QStringLiteral("title"), s.name);
 	QStringList names;
 	for (const Artist &a : s.artists)
