@@ -1,0 +1,41 @@
+name: Qt Rewrite Windows Build
+
+on:
+  push:
+    branches:
+      - qt-rewrite
+  pull_request:
+    branches:
+      - qt-rewrite
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.6.0'
+          host: 'windows'
+          target: 'desktop'
+          arch: 'win64_msvc2019_64'
+
+      - name: Set up Ninja
+        uses: seanmiddleditch/gha-setup-ninja@v3
+
+      - name: Configure CMake
+        working-directory: qt-rewrite
+        run: |
+          cmake -S . -B build -G "Ninja" -DCMAKE_PREFIX_PATH="%Qt6_DIR%"
+        shell: pwsh
+
+      - name: Build
+        working-directory: qt-rewrite
+        run: |
+          cmake --build build --config Release
+        shell: pwsh
+
