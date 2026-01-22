@@ -593,7 +593,6 @@ bool MusicController::lyricFromCache(const QString &songId, Lyric &outLyric)
 void MusicController::saveLyricToCache(const QString &songId, const Lyric &lyric)
 {
 	QJsonArray arr;
-	arr.reserve(lyric.lines.size());
 	for (const LyricLine &ll : lyric.lines)
 	{
 		QJsonObject o;
