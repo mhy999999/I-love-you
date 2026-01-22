@@ -25,11 +25,13 @@ public:
 	QString id() const override;
 	QString displayName() const override;
 	bool supportsLyric() const override;
+	bool supportsCover() const override;
 
 	QSharedPointer<RequestToken> search(const QString &keyword, int limit, const SearchCallback &callback) override;
 	QSharedPointer<RequestToken> songDetail(const QString &songId, const SongDetailCallback &callback) override;
 	QSharedPointer<RequestToken> playUrl(const QString &songId, const PlayUrlCallback &callback) override;
 	QSharedPointer<RequestToken> lyric(const QString &songId, const LyricCallback &callback) override;
+	QSharedPointer<RequestToken> cover(const QUrl &coverUrl, const CoverCallback &callback) override;
 
 private:
 	HttpClient *client;

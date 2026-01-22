@@ -1,9 +1,11 @@
 // NeteaseProvider 实现：通过 netease-cloud-music-api 提供搜索、详情、播放地址与歌词
 #include "netease_provider.h"
 
+#include <algorithm>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QRegularExpression>
 #include <QUrlQuery>
 
 #include "json_utils.h"
@@ -29,6 +31,11 @@ QString NeteaseProvider::displayName() const
 }
 
 bool NeteaseProvider::supportsLyric() const
+{
+	return true;
+}
+
+bool NeteaseProvider::supportsCover() const
 {
 	return true;
 }
@@ -100,6 +107,22 @@ QSharedPointer<RequestToken> NeteaseProvider::lyric(const QString &songId, const
 		}
 		Result<Lyric> parsed = parseLyric(result.value.body);
 		callback(parsed);
+	});
+}
+
+QSharedPointer<RequestToken> NeteaseProvider::cover(const QUrl &coverUrl, const CoverCallback &callback)
+{
+	HttpRequestOptions opts;
+	opts.url = coverUrl;
+	opts.headers.insert("Accept", "image/avif,image/webp,image/apng,image/*,*/*;q=0.8");
+	opts.timeoutMs = 15000;
+	return client->sendWithRetry(opts, 2, 500, [callback](Result<HttpResponse> result) {
+		if (!result.ok)
+		{
+			callback(Result<QByteArray>::failure(result.error));
+			return;
+		}
+		callback(Result<QByteArray>::success(result.value.body));
 	});
 }
 
@@ -232,31 +255,83 @@ Result<Lyric> NeteaseProvider::parseLyric(const QByteArray &body) const
 	QJsonObject root = doc.object();
 	QString rawLrc = root.value(QStringLiteral("lrc")).toObject().value(QStringLiteral("lyric")).toString();
 	Lyric lyric;
-	const QStringList lines = rawLrc.split('\n');
+	QString normalized = rawLrc;
+	normalized.replace("\r\n", "\n");
+	normalized.replace("\r", "\n");
+	QStringList lines = normalized.split('\n');
+	bool anyTimestamp = false;
+	QRegularExpression re(QStringLiteral("\\[(\\d{1,2}):(\\d{2})(?:\\.(\\d{1,3}))?\\]"));
 	for (const QString &line : lines)
 	{
-		if (line.isEmpty())
+		if (line.trimmed().isEmpty())
 			continue;
-		int startBracket = line.indexOf('[');
-		int endBracket = line.indexOf(']');
-		if (startBracket != 0 || endBracket <= 1)
-			continue;
-		QString timePart = line.mid(1, endBracket - 1);
-		QString text = line.mid(endBracket + 1);
-		const QStringList parts = timePart.split(':');
-		if (parts.size() < 2)
-			continue;
-		bool okMin = false;
-		bool okSec = false;
-		int minutes = parts[0].toInt(&okMin);
-		double seconds = parts[1].toDouble(&okSec);
-		if (!okMin || !okSec)
-			continue;
-		qint64 ms = static_cast<qint64>(minutes * 60000 + seconds * 1000);
-		LyricLine ll;
-		ll.timeMs = ms;
-		ll.text = text.trimmed();
-		lyric.lines.append(ll);
+		QRegularExpressionMatchIterator it = re.globalMatch(line);
+		QList<qint64> times;
+		int lastEnd = -1;
+		while (it.hasNext())
+		{
+			QRegularExpressionMatch m = it.next();
+			bool okMin = false;
+			bool okSec = false;
+			int minutes = m.captured(1).toInt(&okMin);
+			int seconds = m.captured(2).toInt(&okSec);
+			if (!okMin || !okSec)
+				continue;
+			int millis = 0;
+			QString msPart = m.captured(3);
+			if (!msPart.isEmpty())
+			{
+				bool okMs = false;
+				int rawMs = msPart.toInt(&okMs);
+				if (okMs)
+				{
+					if (msPart.size() == 1)
+						millis = rawMs * 100;
+					else if (msPart.size() == 2)
+						millis = rawMs * 10;
+					else
+						millis = rawMs;
+				}
+			}
+			times.append(static_cast<qint64>(minutes) * 60000 + static_cast<qint64>(seconds) * 1000 + millis);
+			lastEnd = m.capturedEnd();
+		}
+		QString text = (lastEnd >= 0) ? line.mid(lastEnd).trimmed() : line.trimmed();
+		if (!times.isEmpty())
+		{
+			anyTimestamp = true;
+			for (qint64 t : times)
+			{
+				LyricLine ll;
+				ll.timeMs = t;
+				ll.text = text;
+				lyric.lines.append(ll);
+			}
+		}
+		else
+		{
+			LyricLine ll;
+			ll.timeMs = 0;
+			ll.text = text;
+			lyric.lines.append(ll);
+		}
+	}
+	if (anyTimestamp)
+	{
+		std::sort(lyric.lines.begin(), lyric.lines.end(), [](const LyricLine &a, const LyricLine &b) {
+			if (a.timeMs != b.timeMs)
+				return a.timeMs < b.timeMs;
+			return a.text < b.text;
+		});
+		QList<LyricLine> deduped;
+		deduped.reserve(lyric.lines.size());
+		for (const LyricLine &ll : lyric.lines)
+		{
+			if (!deduped.isEmpty() && deduped.last().timeMs == ll.timeMs && deduped.last().text == ll.text)
+				continue;
+			deduped.append(ll);
+		}
+		lyric.lines = deduped;
 	}
 	return Result<Lyric>::success(lyric);
 }
