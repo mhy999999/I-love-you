@@ -1282,51 +1282,109 @@ Result<Lyric> NeteaseProvider::parseLyric(const QByteArray &body) const
 	QString rawLrc = root.value(QStringLiteral("lrc")).toObject().value(QStringLiteral("lyric")).toString();
 	QString rawTLrc = root.value(QStringLiteral("tlyric")).toObject().value(QStringLiteral("lyric")).toString();
 	QString rawYrc = root.value(QStringLiteral("yrc")).toObject().value(QStringLiteral("lyric")).toString();
-	if (rawLrc.trimmed().isEmpty() && !rawYrc.trimmed().isEmpty())
-	{
-		QJsonParseError ype{};
-		QJsonDocument ydoc = QJsonDocument::fromJson(rawYrc.toUtf8(), &ype);
-		if (ype.error == QJsonParseError::NoError && ydoc.isArray())
-		{
-			Lyric lyric;
-			QJsonArray arr = ydoc.array();
-			lyric.lines.reserve(arr.size());
-			for (const QJsonValue &v : arr)
+
+	auto parseYrcJson = [](const QString &text, Lyric &lyric) -> bool {
+		lyric.lines.clear();
+
+		auto appendFromObject = [&lyric](const QJsonObject &o) {
+			qint64 t = static_cast<qint64>(o.value(QStringLiteral("t")).toVariant().toLongLong());
+			QJsonArray chunks = o.value(QStringLiteral("c")).toArray();
+			QString textLine;
+			textLine.reserve(64);
+			for (const QJsonValue &cv : chunks)
 			{
-				if (!v.isObject())
+				if (!cv.isObject())
 					continue;
-				QJsonObject o = v.toObject();
-				qint64 t = static_cast<qint64>(o.value(QStringLiteral("t")).toVariant().toLongLong());
-				QJsonArray chunks = o.value(QStringLiteral("c")).toArray();
-				QString text;
-				text.reserve(64);
-				for (const QJsonValue &cv : chunks)
-				{
-					if (!cv.isObject())
-						continue;
-					QString tx = cv.toObject().value(QStringLiteral("tx")).toString();
-					if (!tx.isEmpty())
-						text.append(tx);
-				}
-				text = text.trimmed();
-				if (text.isEmpty())
-					continue;
-				LyricLine ll;
-				ll.timeMs = t;
-				ll.text = text;
-				lyric.lines.append(ll);
+				QString tx = cv.toObject().value(QStringLiteral("tx")).toString();
+				if (!tx.isEmpty())
+					textLine.append(tx);
 			}
-			if (!lyric.lines.isEmpty())
+			textLine = textLine.trimmed();
+			if (textLine.isEmpty())
+				return;
+			LyricLine ll;
+			ll.timeMs = t;
+			ll.text = textLine;
+			lyric.lines.append(ll);
+		};
+
+		QJsonParseError ype{};
+		QJsonDocument ydoc = QJsonDocument::fromJson(text.toUtf8(), &ype);
+		if (ype.error == QJsonParseError::NoError)
+		{
+			if (ydoc.isArray())
 			{
-				std::sort(lyric.lines.begin(), lyric.lines.end(), [](const LyricLine &a, const LyricLine &b) {
-					if (a.timeMs != b.timeMs)
-						return a.timeMs < b.timeMs;
-					return a.text < b.text;
-				});
-				return Result<Lyric>::success(lyric);
+				QJsonArray arr = ydoc.array();
+				for (const QJsonValue &v : arr)
+				{
+					if (!v.isObject())
+						continue;
+					appendFromObject(v.toObject());
+				}
+			}
+			else if (ydoc.isObject())
+			{
+				appendFromObject(ydoc.object());
 			}
 		}
+
+		if (lyric.lines.isEmpty())
+		{
+			QString s = text.trimmed();
+			int depth = 0;
+			int start = -1;
+			for (int i = 0; i < s.size(); ++i)
+			{
+				QChar ch = s.at(i);
+				if (ch == QLatin1Char('{'))
+				{
+					if (depth == 0)
+						start = i;
+					++depth;
+				}
+				else if (ch == QLatin1Char('}'))
+				{
+					if (depth > 0)
+						--depth;
+					if (depth == 0 && start >= 0)
+					{
+						QString objText = s.mid(start, i - start + 1);
+						QJsonParseError pe{};
+						QJsonDocument objDoc = QJsonDocument::fromJson(objText.toUtf8(), &pe);
+						if (pe.error == QJsonParseError::NoError && objDoc.isObject())
+							appendFromObject(objDoc.object());
+						start = -1;
+					}
+				}
+			}
+		}
+
+		if (lyric.lines.isEmpty())
+			return false;
+		std::sort(lyric.lines.begin(), lyric.lines.end(), [](const LyricLine &a, const LyricLine &b) {
+			if (a.timeMs != b.timeMs)
+				return a.timeMs < b.timeMs;
+			return a.text < b.text;
+		});
+		return true;
+	};
+
+	if (!rawYrc.trimmed().isEmpty())
+	{
+		Lyric lyric;
+		if (parseYrcJson(rawYrc, lyric))
+		{
+			return Result<Lyric>::success(lyric);
+		}
 	}
+
+	if (rawLrc.trimmed().startsWith(QLatin1Char('{')) || rawLrc.trimmed().startsWith(QLatin1Char('[')))
+	{
+		Lyric lyric;
+		if (parseYrcJson(rawLrc, lyric))
+			return Result<Lyric>::success(lyric);
+	}
+
 	if (!rawLrc.isEmpty() && !rawTLrc.isEmpty())
 	{
 		QMap<QString, QString> original;
@@ -1380,8 +1438,23 @@ Result<Lyric> NeteaseProvider::parseLyric(const QByteArray &body) const
 	QRegularExpression re(QStringLiteral("\\[(\\d{1,2}):(\\d{2})(?:\\.(\\d{1,3}))?\\]"));
 	for (const QString &line : lines)
 	{
-		if (line.trimmed().isEmpty())
+		QString trimmed = line.trimmed();
+		if (trimmed.isEmpty())
 			continue;
+		if (trimmed.startsWith(QLatin1Char('{')) || trimmed.startsWith(QLatin1Char('[')))
+		{
+			Lyric jsonLyric;
+			if (parseYrcJson(trimmed, jsonLyric) && !jsonLyric.lines.isEmpty())
+			{
+				for (const LyricLine &ll : jsonLyric.lines)
+				{
+					if (ll.timeMs > 0)
+						anyTimestamp = true;
+					lyric.lines.append(ll);
+				}
+				continue;
+			}
+		}
 		QRegularExpressionMatchIterator it = re.globalMatch(line);
 		QList<qint64> times;
 		int lastEnd = -1;

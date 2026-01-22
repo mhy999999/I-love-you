@@ -597,6 +597,9 @@ bool MusicController::lyricFromCache(const QString &key, Lyric &outLyric)
 		LyricLine ll;
 		ll.timeMs = static_cast<qint64>(o.value(QStringLiteral("t")).toDouble());
 		ll.text = o.value(QStringLiteral("x")).toString();
+		QString trimmed = ll.text.trimmed();
+		if (trimmed.startsWith(QLatin1Char('{')) || trimmed.startsWith(QLatin1Char('[')))
+			continue;
 		lyric.lines.append(ll);
 	}
 	outLyric = lyric;
