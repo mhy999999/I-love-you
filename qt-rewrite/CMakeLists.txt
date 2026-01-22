@@ -21,6 +21,7 @@ qt_add_executable(appqtrewrite
 	main.cpp
 	src/logger.cpp
 	src/http_client.cpp
+	src/json_utils.cpp
 )
 
 qt_add_qml_module(appqtrewrite
