@@ -48,6 +48,8 @@ public:
 	virtual bool supportsLyric() const { return false; }
 	// 是否支持封面图片拉取（通常用于需要特殊 header/cookie 的来源）
 	virtual bool supportsCover() const { return false; }
+	virtual bool supportsPlaylistDetail() const { return false; }
+	virtual bool supportsPlaylistTracks() const { return false; }
 
 	// 搜索结果回调类型：返回歌曲列表或错误
 	using SearchCallback = std::function<void(Result<QList<Song>>) >;
@@ -59,6 +61,8 @@ public:
 	using LyricCallback = std::function<void(Result<Lyric>)>;
 	// 封面回调类型：返回图片二进制或错误
 	using CoverCallback = std::function<void(Result<QByteArray>)>;
+	using PlaylistDetailCallback = std::function<void(Result<PlaylistMeta>)>;
+	using PlaylistTracksCallback = std::function<void(Result<PlaylistTracksPage>)>;
 
 	// 按关键字搜索歌曲，limit 控制最大返回条数
 	virtual QSharedPointer<RequestToken> search(const QString &keyword, int limit, const SearchCallback &callback) = 0;
@@ -70,6 +74,8 @@ public:
 	virtual QSharedPointer<RequestToken> lyric(const QString &songId, const LyricCallback &callback) = 0;
 	// 拉取封面图片内容（以 coverUrl 为键，部分来源可能需要特定请求头）
 	virtual QSharedPointer<RequestToken> cover(const QUrl &coverUrl, const CoverCallback &callback) = 0;
+	virtual QSharedPointer<RequestToken> playlistDetail(const QString &playlistId, const PlaylistDetailCallback &callback) = 0;
+	virtual QSharedPointer<RequestToken> playlistTracks(const QString &playlistId, int limit, int offset, const PlaylistTracksCallback &callback) = 0;
 };
 
 }

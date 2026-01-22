@@ -320,4 +320,172 @@ QSharedPointer<RequestToken> ProviderManager::lyric(const QString &songId, const
 	return masterToken;
 }
 
+QSharedPointer<RequestToken> ProviderManager::cover(const QUrl &coverUrl, const IProvider::CoverCallback &callback, const QStringList &preferredProviderIds)
+{
+	QList<IProvider *> candidates = resolveProviders(preferredProviderIds, [](IProvider *p) { return p->supportsCover(); });
+	if (candidates.isEmpty())
+	{
+		Error e;
+		e.category = ErrorCategory::UpstreamChange;
+		e.code = 404;
+		e.message = QStringLiteral("No providers available for cover");
+		callback(Result<QByteArray>::failure(e));
+		return {};
+	}
+
+	QSharedPointer<RequestToken> masterToken = QSharedPointer<RequestToken>::create();
+	struct State
+	{
+		int index = 0;
+		QSharedPointer<RequestToken> currentToken;
+		Error lastError;
+	};
+	QSharedPointer<State> state = QSharedPointer<State>::create();
+	QSharedPointer<std::function<void()>> nextFn = QSharedPointer<std::function<void()>>::create();
+	*nextFn = [this, coverUrl, candidates, callback, masterToken, state, nextFn]() {
+		if (masterToken->isCancelled())
+		{
+			if (state->currentToken)
+				state->currentToken->cancel();
+			return;
+		}
+		if (state->index >= candidates.size())
+		{
+			callback(Result<QByteArray>::failure(state->lastError));
+			return;
+		}
+		IProvider *provider = candidates.at(state->index);
+		state->currentToken = provider->cover(coverUrl, [this, callback, masterToken, state, nextFn, candidates](Result<QByteArray> result) {
+			if (masterToken->isCancelled())
+				return;
+			if (result.ok || !managerConfig.fallbackEnabled || state->index >= candidates.size() - 1)
+			{
+				callback(result);
+				return;
+			}
+			state->lastError = result.error;
+			state->index++;
+			(*nextFn)();
+		});
+		QObject::connect(masterToken.data(), &RequestToken::cancelled, provider, [state]() {
+			if (state->currentToken)
+				state->currentToken->cancel();
+		});
+	};
+	(*nextFn)();
+	return masterToken;
+}
+
+QSharedPointer<RequestToken> ProviderManager::playlistDetail(const QString &playlistId, const IProvider::PlaylistDetailCallback &callback, const QStringList &preferredProviderIds)
+{
+	QList<IProvider *> candidates = resolveProviders(preferredProviderIds, [](IProvider *p) { return p->supportsPlaylistDetail(); });
+	if (candidates.isEmpty())
+	{
+		Error e;
+		e.category = ErrorCategory::UpstreamChange;
+		e.code = 404;
+		e.message = QStringLiteral("No providers available for playlist detail");
+		callback(Result<PlaylistMeta>::failure(e));
+		return {};
+	}
+
+	QSharedPointer<RequestToken> masterToken = QSharedPointer<RequestToken>::create();
+	struct State
+	{
+		int index = 0;
+		QSharedPointer<RequestToken> currentToken;
+		Error lastError;
+	};
+	QSharedPointer<State> state = QSharedPointer<State>::create();
+	QSharedPointer<std::function<void()>> nextFn = QSharedPointer<std::function<void()>>::create();
+	*nextFn = [this, playlistId, candidates, callback, masterToken, state, nextFn]() {
+		if (masterToken->isCancelled())
+		{
+			if (state->currentToken)
+				state->currentToken->cancel();
+			return;
+		}
+		if (state->index >= candidates.size())
+		{
+			callback(Result<PlaylistMeta>::failure(state->lastError));
+			return;
+		}
+		IProvider *provider = candidates.at(state->index);
+		state->currentToken = provider->playlistDetail(playlistId, [this, callback, masterToken, state, nextFn, candidates](Result<PlaylistMeta> result) {
+			if (masterToken->isCancelled())
+				return;
+			if (result.ok || !managerConfig.fallbackEnabled || state->index >= candidates.size() - 1)
+			{
+				callback(result);
+				return;
+			}
+			state->lastError = result.error;
+			state->index++;
+			(*nextFn)();
+		});
+		QObject::connect(masterToken.data(), &RequestToken::cancelled, provider, [state]() {
+			if (state->currentToken)
+				state->currentToken->cancel();
+		});
+	};
+	(*nextFn)();
+	return masterToken;
+}
+
+QSharedPointer<RequestToken> ProviderManager::playlistTracks(const QString &playlistId, int limit, int offset, const IProvider::PlaylistTracksCallback &callback, const QStringList &preferredProviderIds)
+{
+	QList<IProvider *> candidates = resolveProviders(preferredProviderIds, [](IProvider *p) { return p->supportsPlaylistTracks(); });
+	if (candidates.isEmpty())
+	{
+		Error e;
+		e.category = ErrorCategory::UpstreamChange;
+		e.code = 404;
+		e.message = QStringLiteral("No providers available for playlist tracks");
+		callback(Result<PlaylistTracksPage>::failure(e));
+		return {};
+	}
+
+	QSharedPointer<RequestToken> masterToken = QSharedPointer<RequestToken>::create();
+	struct State
+	{
+		int index = 0;
+		QSharedPointer<RequestToken> currentToken;
+		Error lastError;
+	};
+	QSharedPointer<State> state = QSharedPointer<State>::create();
+	QSharedPointer<std::function<void()>> nextFn = QSharedPointer<std::function<void()>>::create();
+	*nextFn = [this, playlistId, limit, offset, candidates, callback, masterToken, state, nextFn]() {
+		if (masterToken->isCancelled())
+		{
+			if (state->currentToken)
+				state->currentToken->cancel();
+			return;
+		}
+		if (state->index >= candidates.size())
+		{
+			callback(Result<PlaylistTracksPage>::failure(state->lastError));
+			return;
+		}
+		IProvider *provider = candidates.at(state->index);
+		state->currentToken = provider->playlistTracks(playlistId, limit, offset, [this, callback, masterToken, state, nextFn, candidates](Result<PlaylistTracksPage> result) {
+			if (masterToken->isCancelled())
+				return;
+			if (result.ok || !managerConfig.fallbackEnabled || state->index >= candidates.size() - 1)
+			{
+				callback(result);
+				return;
+			}
+			state->lastError = result.error;
+			state->index++;
+			(*nextFn)();
+		});
+		QObject::connect(masterToken.data(), &RequestToken::cancelled, provider, [state]() {
+			if (state->currentToken)
+				state->currentToken->cancel();
+		});
+	};
+	(*nextFn)();
+	return masterToken;
+}
+
 }

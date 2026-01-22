@@ -7,6 +7,7 @@
 #include <QSharedPointer>
 #include <QString>
 #include <QStringList>
+#include <QUrl>
 
 #include <functional>
 
@@ -54,6 +55,12 @@ public:
 	QSharedPointer<RequestToken> playUrl(const QString &songId, const IProvider::PlayUrlCallback &callback, const QStringList &preferredProviderIds = {});
 	// 获取歌词，支持多 Provider fallback
 	QSharedPointer<RequestToken> lyric(const QString &songId, const IProvider::LyricCallback &callback, const QStringList &preferredProviderIds = {});
+	// 获取封面图片内容，支持多 Provider fallback
+	QSharedPointer<RequestToken> cover(const QUrl &coverUrl, const IProvider::CoverCallback &callback, const QStringList &preferredProviderIds = {});
+	// 获取歌单详情，支持多 Provider fallback
+	QSharedPointer<RequestToken> playlistDetail(const QString &playlistId, const IProvider::PlaylistDetailCallback &callback, const QStringList &preferredProviderIds = {});
+	// 分页拉取歌单曲目，支持多 Provider fallback
+	QSharedPointer<RequestToken> playlistTracks(const QString &playlistId, int limit, int offset, const IProvider::PlaylistTracksCallback &callback, const QStringList &preferredProviderIds = {});
 
 private:
 	// Provider 存储：id -> 实例指针

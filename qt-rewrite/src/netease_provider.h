@@ -26,12 +26,16 @@ public:
 	QString displayName() const override;
 	bool supportsLyric() const override;
 	bool supportsCover() const override;
+	bool supportsPlaylistDetail() const override;
+	bool supportsPlaylistTracks() const override;
 
 	QSharedPointer<RequestToken> search(const QString &keyword, int limit, const SearchCallback &callback) override;
 	QSharedPointer<RequestToken> songDetail(const QString &songId, const SongDetailCallback &callback) override;
 	QSharedPointer<RequestToken> playUrl(const QString &songId, const PlayUrlCallback &callback) override;
 	QSharedPointer<RequestToken> lyric(const QString &songId, const LyricCallback &callback) override;
 	QSharedPointer<RequestToken> cover(const QUrl &coverUrl, const CoverCallback &callback) override;
+	QSharedPointer<RequestToken> playlistDetail(const QString &playlistId, const PlaylistDetailCallback &callback) override;
+	QSharedPointer<RequestToken> playlistTracks(const QString &playlistId, int limit, int offset, const PlaylistTracksCallback &callback) override;
 
 private:
 	HttpClient *client;
@@ -42,6 +46,8 @@ private:
 	Result<Song> parseSongDetail(const QByteArray &body) const;
 	Result<PlayUrl> parsePlayUrl(const QByteArray &body) const;
 	Result<Lyric> parseLyric(const QByteArray &body) const;
+	Result<PlaylistMeta> parsePlaylistDetail(const QByteArray &body) const;
+	Result<PlaylistTracksPage> parsePlaylistTracks(const QString &playlistId, int limit, int offset, const QByteArray &body) const;
 };
 
 }

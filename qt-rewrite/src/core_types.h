@@ -55,12 +55,22 @@ struct Song
 	PlayUrl playUrl;
 };
 
-// 歌单信息，包含一组歌曲
-struct Playlist
+struct PlaylistMeta
 {
 	QString id;
 	QString name;
+	QUrl coverUrl;
+	QString description;
+	int trackCount = 0;
+};
+
+struct PlaylistTracksPage
+{
+	QString playlistId;
 	QList<Song> songs;
+	int total = 0;
+	int offset = 0;
+	int limit = 0;
 };
 
 // 错误分类，用于统一错误上报

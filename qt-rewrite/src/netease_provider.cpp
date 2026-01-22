@@ -40,6 +40,16 @@ bool NeteaseProvider::supportsCover() const
 	return true;
 }
 
+bool NeteaseProvider::supportsPlaylistDetail() const
+{
+	return true;
+}
+
+bool NeteaseProvider::supportsPlaylistTracks() const
+{
+	return true;
+}
+
 QUrl NeteaseProvider::buildUrl(const QString &path, const QList<QPair<QString, QString>> &query) const
 {
 	QUrl url = apiBase.resolved(QUrl(path));
@@ -123,6 +133,34 @@ QSharedPointer<RequestToken> NeteaseProvider::cover(const QUrl &coverUrl, const 
 			return;
 		}
 		callback(Result<QByteArray>::success(result.value.body));
+	});
+}
+
+QSharedPointer<RequestToken> NeteaseProvider::playlistDetail(const QString &playlistId, const PlaylistDetailCallback &callback)
+{
+	HttpRequestOptions opts;
+	opts.url = buildUrl(QStringLiteral("/playlist/detail"), {{QStringLiteral("id"), playlistId}});
+	return client->sendWithRetry(opts, 2, 500, [this, callback](Result<HttpResponse> result) {
+		if (!result.ok)
+		{
+			callback(Result<PlaylistMeta>::failure(result.error));
+			return;
+		}
+		callback(parsePlaylistDetail(result.value.body));
+	});
+}
+
+QSharedPointer<RequestToken> NeteaseProvider::playlistTracks(const QString &playlistId, int limit, int offset, const PlaylistTracksCallback &callback)
+{
+	HttpRequestOptions opts;
+	opts.url = buildUrl(QStringLiteral("/playlist/track/all"), {{QStringLiteral("id"), playlistId}, {QStringLiteral("limit"), QString::number(limit > 0 ? limit : 50)}, {QStringLiteral("offset"), QString::number(offset > 0 ? offset : 0)}});
+	return client->sendWithRetry(opts, 2, 500, [this, playlistId, limit, offset, callback](Result<HttpResponse> result) {
+		if (!result.ok)
+		{
+			callback(Result<PlaylistTracksPage>::failure(result.error));
+			return;
+		}
+		callback(parsePlaylistTracks(playlistId, limit, offset, result.value.body));
 	});
 }
 
@@ -334,6 +372,86 @@ Result<Lyric> NeteaseProvider::parseLyric(const QByteArray &body) const
 		lyric.lines = deduped;
 	}
 	return Result<Lyric>::success(lyric);
+}
+
+Result<PlaylistMeta> NeteaseProvider::parsePlaylistDetail(const QByteArray &body) const
+{
+	QJsonParseError err{};
+	QJsonDocument doc = QJsonDocument::fromJson(body, &err);
+	if (err.error != QJsonParseError::NoError || !doc.isObject())
+	{
+		Error e;
+		e.category = ErrorCategory::Parser;
+		e.code = -1;
+		e.message = QStringLiteral("Parse playlist detail response failed");
+		return Result<PlaylistMeta>::failure(e);
+	}
+	QJsonObject root = doc.object();
+	QJsonObject playlistObj = root.value(QStringLiteral("playlist")).toObject();
+	if (playlistObj.isEmpty())
+	{
+		Error e;
+		e.category = ErrorCategory::UpstreamChange;
+		e.code = 404;
+		e.message = QStringLiteral("Playlist not found");
+		return Result<PlaylistMeta>::failure(e);
+	}
+	PlaylistMeta meta;
+	meta.id = playlistObj.value(QStringLiteral("id")).toVariant().toString();
+	meta.name = playlistObj.value(QStringLiteral("name")).toString();
+	meta.coverUrl = QUrl(playlistObj.value(QStringLiteral("coverImgUrl")).toString());
+	meta.description = playlistObj.value(QStringLiteral("description")).toString();
+	meta.trackCount = playlistObj.value(QStringLiteral("trackCount")).toInt();
+	return Result<PlaylistMeta>::success(meta);
+}
+
+Result<PlaylistTracksPage> NeteaseProvider::parsePlaylistTracks(const QString &playlistId, int limit, int offset, const QByteArray &body) const
+{
+	QJsonParseError err{};
+	QJsonDocument doc = QJsonDocument::fromJson(body, &err);
+	if (err.error != QJsonParseError::NoError || !doc.isObject())
+	{
+		Error e;
+		e.category = ErrorCategory::Parser;
+		e.code = -1;
+		e.message = QStringLiteral("Parse playlist tracks response failed");
+		return Result<PlaylistTracksPage>::failure(e);
+	}
+	QJsonObject root = doc.object();
+	QJsonArray songsArr = root.value(QStringLiteral("songs")).toArray();
+	QList<Song> songs;
+	songs.reserve(songsArr.size());
+	for (const QJsonValue &v : songsArr)
+	{
+		QJsonObject o = v.toObject();
+		Song s;
+		s.id = o.value(QStringLiteral("id")).toVariant().toString();
+		s.name = o.value(QStringLiteral("name")).toString();
+		QJsonArray artistArr = o.value(QStringLiteral("ar")).toArray();
+		for (const QJsonValue &av : artistArr)
+		{
+			QJsonObject ao = av.toObject();
+			Artist a;
+			a.id = ao.value(QStringLiteral("id")).toVariant().toString();
+			a.name = ao.value(QStringLiteral("name")).toString();
+			s.artists.append(a);
+		}
+		QJsonObject al = o.value(QStringLiteral("al")).toObject();
+		s.album.id = al.value(QStringLiteral("id")).toVariant().toString();
+		s.album.name = al.value(QStringLiteral("name")).toString();
+		s.album.coverUrl = QUrl(al.value(QStringLiteral("picUrl")).toString());
+		s.durationMs = o.value(QStringLiteral("dt")).toInteger();
+		songs.append(s);
+	}
+	PlaylistTracksPage page;
+	page.playlistId = playlistId;
+	page.songs = songs;
+	page.limit = limit > 0 ? limit : songs.size();
+	page.offset = offset > 0 ? offset : 0;
+	page.total = root.value(QStringLiteral("total")).toInt();
+	if (page.total <= 0)
+		page.total = page.offset + page.songs.size();
+	return Result<PlaylistTracksPage>::success(page);
 }
 
 }
