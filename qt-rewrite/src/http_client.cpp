@@ -166,7 +166,6 @@ void HttpClient::sendOnce(const HttpRequestOptions &options, const QSharedPointe
 
 	// 构造 QNetworkRequest 并写入请求头
 	QNetworkRequest request(options.url);
-	request.setAttribute(QNetworkRequest::FollowRedirectsAttribute, followRedirects);
 	applyHeaders(request, options);
 
 	// 根据 method 选择 GET/POST/PUT
