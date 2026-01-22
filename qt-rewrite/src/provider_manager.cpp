@@ -125,7 +125,7 @@ QSharedPointer<RequestToken> ProviderManager::search(const QString &keyword, int
 			return;
 		}
 		IProvider *provider = candidates.at(state->index);
-		state->currentToken = provider->search(keyword, limit, [this, callback, masterToken, state, nextFn](Result<QList<Song>> result) {
+		state->currentToken = provider->search(keyword, limit, [this, callback, masterToken, state, nextFn, candidates](Result<QList<Song>> result) {
 			if (masterToken->isCancelled())
 				return;
 			// 成功或未启用 fallback 时直接返回
@@ -185,7 +185,7 @@ QSharedPointer<RequestToken> ProviderManager::songDetail(const QString &songId, 
 			return;
 		}
 		IProvider *provider = candidates.at(state->index);
-		state->currentToken = provider->songDetail(songId, [this, callback, masterToken, state, nextFn](Result<Song> result) {
+		state->currentToken = provider->songDetail(songId, [this, callback, masterToken, state, nextFn, candidates](Result<Song> result) {
 			if (masterToken->isCancelled())
 				return;
 			if (result.ok || !managerConfig.fallbackEnabled || state->index >= candidates.size() - 1)
@@ -242,7 +242,7 @@ QSharedPointer<RequestToken> ProviderManager::playUrl(const QString &songId, con
 			return;
 		}
 		IProvider *provider = candidates.at(state->index);
-		state->currentToken = provider->playUrl(songId, [this, callback, masterToken, state, nextFn](Result<PlayUrl> result) {
+		state->currentToken = provider->playUrl(songId, [this, callback, masterToken, state, nextFn, candidates](Result<PlayUrl> result) {
 			if (masterToken->isCancelled())
 				return;
 			if (result.ok || !managerConfig.fallbackEnabled || state->index >= candidates.size() - 1)
@@ -299,7 +299,7 @@ QSharedPointer<RequestToken> ProviderManager::lyric(const QString &songId, const
 			return;
 		}
 		IProvider *provider = candidates.at(state->index);
-		state->currentToken = provider->lyric(songId, [this, callback, masterToken, state, nextFn](Result<Lyric> result) {
+		state->currentToken = provider->lyric(songId, [this, callback, masterToken, state, nextFn, candidates](Result<Lyric> result) {
 			if (masterToken->isCancelled())
 				return;
 			if (result.ok || !managerConfig.fallbackEnabled || state->index >= candidates.size() - 1)
@@ -321,4 +321,3 @@ QSharedPointer<RequestToken> ProviderManager::lyric(const QString &songId, const
 }
 
 }
-
