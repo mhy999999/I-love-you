@@ -13,7 +13,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Quick Network)
+find_package(Qt6 REQUIRED COMPONENTS Quick Network Multimedia)
 
 qt_standard_project_setup(REQUIRES 6.8)
 
@@ -22,7 +22,10 @@ qt_add_executable(appqtrewrite
 	src/logger.cpp
 	src/http_client.cpp
 	src/json_utils.cpp
+	src/netease_provider.cpp
 	src/provider_manager.cpp
+	src/song_list_model.cpp
+	src/music_controller.cpp
 )
 
 qt_add_qml_module(appqtrewrite
@@ -48,7 +51,7 @@ target_include_directories(appqtrewrite
 )
 
 target_link_libraries(appqtrewrite
-	PRIVATE Qt6::Quick Qt6::Network
+	PRIVATE Qt6::Quick Qt6::Network Qt6::Multimedia
 )
 
 include(GNUInstallDirs)

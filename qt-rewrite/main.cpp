@@ -5,6 +5,7 @@
 
 #include "core_types.h"
 #include "logger.h"
+#include "music_controller.h"
 
 // 程序主函数
 int main(int argc, char *argv[])
@@ -22,6 +23,8 @@ int main(int argc, char *argv[])
 
 	// 创建 QML 引擎并加载主 QML 模块
 	QQmlApplicationEngine engine;
+	App::MusicController musicController;
+	engine.rootContext()->setContextProperty("musicController", &musicController);
 	// 当根对象创建失败时，退出应用，避免进入不一致状态
 	QObject::connect(
 		&engine,
