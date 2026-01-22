@@ -2,6 +2,7 @@
 #include "music_controller.h"
 
 #include <QCoreApplication>
+#include <QAudioOutput>
 
 namespace App
 {
@@ -149,4 +150,3 @@ void MusicController::stop()
 }
 
 }
-
