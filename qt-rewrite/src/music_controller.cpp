@@ -449,6 +449,25 @@ int MusicController::currentLyricIndex() const
 	return m_currentLyricIndex;
 }
 
+qint64 MusicController::currentLyricStartMs() const
+{
+	const QList<LyricLine> &lines = m_lyricModel.lyric().lines;
+	if (m_currentLyricIndex < 0 || m_currentLyricIndex >= lines.size())
+		return 0;
+	return lines.at(m_currentLyricIndex).timeMs;
+}
+
+qint64 MusicController::currentLyricNextMs() const
+{
+	const QList<LyricLine> &lines = m_lyricModel.lyric().lines;
+	if (lines.isEmpty())
+		return 0;
+	int nextIndex = m_currentLyricIndex + 1;
+	if (nextIndex >= 0 && nextIndex < lines.size())
+		return lines.at(nextIndex).timeMs;
+	// 若无下一行，则以歌曲总时长作为下一时间边界
+	return m_durationMs > 0 ? m_durationMs : lines.last().timeMs;
+}
 QUrl MusicController::coverSource() const
 {
 	return m_coverSource;

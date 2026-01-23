@@ -736,6 +736,7 @@ ApplicationWindow {
 							} else {
 								volumePopupCloseDelay.restart()
 							}
+
 						}
 					}
 					MouseArea {
@@ -896,5 +897,10 @@ ApplicationWindow {
 				}
 			}
 		}
+	}
+	LyricOverlay {
+		id: lyricOverlay
+		visible: lyricBox.active
+		onVisibleChanged: lyricBox.active = visible
 	}
 }

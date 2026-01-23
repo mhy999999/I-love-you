@@ -31,6 +31,9 @@ class MusicController : public QObject
 	Q_PROPERTY(qint64 positionMs READ positionMs NOTIFY positionMsChanged)
 	Q_PROPERTY(qint64 durationMs READ durationMs NOTIFY durationMsChanged)
 	Q_PROPERTY(int currentLyricIndex READ currentLyricIndex NOTIFY currentLyricIndexChanged)
+	// 便于 QML 计算当前歌词渐进高亮的时间范围
+	Q_PROPERTY(qint64 currentLyricStartMs READ currentLyricStartMs NOTIFY currentLyricIndexChanged)
+	Q_PROPERTY(qint64 currentLyricNextMs READ currentLyricNextMs NOTIFY currentLyricIndexChanged)
 	Q_PROPERTY(QUrl coverSource READ coverSource NOTIFY coverSourceChanged)
 	Q_PROPERTY(SongListModel *playlistModel READ playlistModel CONSTANT)
 	Q_PROPERTY(bool playlistLoading READ playlistLoading NOTIFY playlistLoadingChanged)
@@ -53,6 +56,8 @@ public:
 	qint64 positionMs() const;
 	qint64 durationMs() const;
 	int currentLyricIndex() const;
+	qint64 currentLyricStartMs() const;
+	qint64 currentLyricNextMs() const;
 	QUrl coverSource() const;
 	SongListModel *playlistModel();
 	bool playlistLoading() const;
