@@ -36,6 +36,8 @@ class MusicController : public QObject
 	Q_PROPERTY(bool playlistLoading READ playlistLoading NOTIFY playlistLoadingChanged)
 	Q_PROPERTY(QString playlistName READ playlistName NOTIFY playlistNameChanged)
 	Q_PROPERTY(bool playlistHasMore READ playlistHasMore NOTIFY playlistHasMoreChanged)
+	Q_PROPERTY(QString currentSongTitle READ currentSongTitle NOTIFY currentSongTitleChanged)
+	Q_PROPERTY(QString currentSongArtists READ currentSongArtists NOTIFY currentSongArtistsChanged)
 
 public:
 	explicit MusicController(QObject *parent = nullptr);
@@ -55,6 +57,8 @@ public:
 	bool playlistLoading() const;
 	QString playlistName() const;
 	bool playlistHasMore() const;
+	QString currentSongTitle() const;
+	QString currentSongArtists() const;
 
 	Q_INVOKABLE void search(const QString &keyword);
 	Q_INVOKABLE void playIndex(int index);
@@ -79,6 +83,8 @@ signals:
 	void playlistNameChanged();
 	void playlistHasMoreChanged();
 	void errorOccurred(const QString &message);
+	void currentSongTitleChanged();
+	void currentSongArtistsChanged();
 
 private:
 	HttpClient httpClient;
@@ -118,6 +124,8 @@ private:
 	int m_playlistTotal = 0;
 	int m_playlistOffset = 0;
 	int m_playlistLimit = 50;
+	QString m_currentSongTitle;
+	QString m_currentSongArtists;
 
 	void setLoading(bool v);
 	void setCurrentUrl(const QUrl &url);
@@ -129,6 +137,8 @@ private:
 	void setPlaylistLoading(bool v);
 	void setPlaylistName(const QString &name);
 	void setPlaylistHasMore(bool v);
+	void setCurrentSongTitle(const QString &title);
+	void setCurrentSongArtists(const QString &artists);
 	void updateCurrentLyricIndexByPosition(qint64 posMs);
 	void requestLyric(const QString &providerId, const QString &songId);
 	void requestCover(const QUrl &coverUrl);

@@ -432,6 +432,16 @@ QUrl MusicController::coverSource() const
 	return m_coverSource;
 }
 
+QString MusicController::currentSongTitle() const
+{
+	return m_currentSongTitle;
+}
+
+QString MusicController::currentSongArtists() const
+{
+	return m_currentSongArtists;
+}
+
 bool MusicController::playlistLoading() const
 {
 	return m_playlistLoading;
@@ -527,6 +537,22 @@ void MusicController::setPlaylistHasMore(bool v)
 		return;
 	m_playlistHasMore = v;
 	emit playlistHasMoreChanged();
+}
+
+void MusicController::setCurrentSongTitle(const QString &title)
+{
+	if (m_currentSongTitle == title)
+		return;
+	m_currentSongTitle = title;
+	emit currentSongTitleChanged();
+}
+
+void MusicController::setCurrentSongArtists(const QString &artists)
+{
+	if (m_currentSongArtists == artists)
+		return;
+	m_currentSongArtists = artists;
+	emit currentSongArtistsChanged();
 }
 
 void MusicController::updateCurrentLyricIndexByPosition(qint64 posMs)
@@ -732,6 +758,8 @@ void MusicController::playIndex(int index)
 	QStringList artistNames;
 	for (const Artist &a : song.artists)
 		artistNames.append(a.name);
+	setCurrentSongTitle(song.name);
+	setCurrentSongArtists(artistNames.join(QStringLiteral(" / ")));
 	Logger::info(QStringLiteral("Play index %1, provider=%2, songId=%3, title=%4, artists=%5, durationMs=%6")
 				 .arg(index)
 				 .arg(providerId)
