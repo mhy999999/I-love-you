@@ -26,6 +26,24 @@ ApplicationWindow {
 	property url iconVolumeMute: Qt.resolvedUrl("ui-asset/black-backgroud/声音静音.svg")
 	property url iconList: Qt.resolvedUrl("ui-asset/black-backgroud/列表2.svg")
 	property url iconSettings: Qt.resolvedUrl("ui-asset/black-backgroud/设置.svg")
+	property url iconModeSequence: Qt.resolvedUrl("ui-asset/black-backgroud/music_playerModes/顺序.svg")
+	property url iconModeRandom: Qt.resolvedUrl("ui-asset/black-backgroud/music_playerModes/随机.svg")
+	property url iconModeLoopAll: Qt.resolvedUrl("ui-asset/black-backgroud/music_playerModes/循环.svg")
+	property url iconModeLoopOne: Qt.resolvedUrl("ui-asset/black-backgroud/music_playerModes/单曲循环.svg")
+	property int navIndex: 1
+	property url playbackModeIcon: {
+		if (!musicController) return iconModeSequence
+		if (musicController.playbackMode === 1) return iconModeRandom
+		if (musicController.playbackMode === 2) return iconModeLoopAll
+		if (musicController.playbackMode === 3) return iconModeLoopOne
+		return iconModeSequence
+	}
+	ListModel {
+		id: mainNavModel
+		ListElement { pageIndex: 0; label: qsTr("首页"); glyph: "\uE80F" }
+		ListElement { pageIndex: 1; label: qsTr("搜索"); glyph: "\uE721" }
+		ListElement { pageIndex: 2; label: qsTr("歌单"); glyph: "\uE189" }
+	}
 
 	function formatMs(ms) {
 		var v = Math.max(0, Math.floor(ms || 0))
@@ -38,6 +56,9 @@ ApplicationWindow {
 
 	Connections {
 		target: musicController
+		function onCurrentSongIndexChanged() {
+			currentSongIndex = musicController ? musicController.currentSongIndex : -1
+		}
 		function onErrorOccurred(message) {
 			lastError = message
 			errorDialog.open()
@@ -80,68 +101,171 @@ ApplicationWindow {
 			}
 
 			Item { Layout.fillWidth: true }
-
-			Item {
-				Layout.preferredWidth: 260
-				implicitHeight: 32
-				TextField {
-					id: globalSearchField
-					anchors.fill: parent
-					placeholderText: qsTr("搜索歌曲或歌单")
-					font.pixelSize: 14
-					color: "#111827"
-					background: Rectangle {
-						radius: 6
-						color: "#ffffff"
-						border.color: "#cbd5e1"
-						border.width: 1
-					}
-					onAccepted: {
-						if (musicController) {
-							if (tabBar.currentIndex === 0)
-								musicController.search(text)
-							else
-								musicController.loadPlaylist(text)
-						}
-					}
-				}
-				Text {
-					text: globalSearchField.placeholderText
-					color: "#6b7280"
-					anchors.verticalCenter: parent.verticalCenter
-					anchors.left: parent.left
-					anchors.leftMargin: 8
-					visible: globalSearchField.text.length === 0
-					elide: Text.ElideRight
-				}
-			}
 		}
 	}
 
-	ColumnLayout {
+	RowLayout {
 		anchors.fill: parent
 		anchors.margins: 20
 		spacing: 16
 
-		TabBar {
-			id: tabBar
-			Layout.fillWidth: true
-			TabButton {
-				text: qsTr("搜索")
-				contentItem: Text {
-					text: qsTr("搜索")
-					color: "#111827"
-					horizontalAlignment: Text.AlignHCenter
-					verticalAlignment: Text.AlignVCenter
-				}
+		Frame {
+			id: leftNav
+			Layout.preferredWidth: 86
+			Layout.minimumWidth: 76
+			Layout.maximumWidth: 120
+			Layout.fillHeight: true
+			leftPadding: 4
+			rightPadding: 4
+			topPadding: 10
+			bottomPadding: 10
+			background: Rectangle {
+				color: "#ffffff"
+				radius: 16
+				border.color: "#cbd5e1"
+				border.width: 1
 			}
-			TabButton {
-				text: qsTr("歌单")
-				contentItem: Text {
-					text: qsTr("歌单")
+
+			ColumnLayout {
+				anchors.fill: parent
+				spacing: 10
+
+				Rectangle {
+					Layout.alignment: Qt.AlignHCenter
+					width: 40
+					height: 40
+					radius: 12
 					color: "#111827"
-					horizontalAlignment: Text.AlignHCenter
-					verticalAlignment: Text.AlignVCenter
+					Text {
+						anchors.centerIn: parent
+						text: "M"
+						color: "#ffffff"
+						font.pixelSize: 18
+						font.weight: Font.DemiBold
+					}
+				}
+
+				ListView {
+					id: navList
+					Layout.fillWidth: true
+					Layout.preferredHeight: contentHeight
+					model: mainNavModel
+					clip: true
+					spacing: 6
+					ScrollBar.vertical: ScrollBar { policy: ScrollBar.AlwaysOff }
+					ScrollIndicator.vertical: ScrollIndicator { visible: false }
+
+					delegate: ItemDelegate {
+						id: navItem
+						required property int pageIndex
+						required property string label
+						required property string glyph
+
+						width: navList.width
+						height: 58
+						highlighted: navIndex === pageIndex
+						onClicked: navIndex = pageIndex
+						padding: 0
+						HoverHandler { cursorShape: Qt.PointingHandCursor }
+
+						background: Rectangle {
+							anchors.fill: parent
+							radius: 12
+							color: navItem.highlighted ? "#eef2ff" : (navItem.hovered ? "#f3f4f6" : "transparent")
+							Rectangle {
+								width: 3
+								height: 30
+								radius: 2
+								color: navItem.highlighted ? "#4f46e5" : "transparent"
+								anchors.left: parent.left
+								anchors.leftMargin: 0
+								anchors.verticalCenter: parent.verticalCenter
+							}
+						}
+
+						contentItem: Column {
+							anchors.left: parent.left
+							anchors.leftMargin: 12
+							anchors.verticalCenter: parent.verticalCenter
+							width: Math.min(56, parent.width - anchors.leftMargin)
+							spacing: 4
+							Text {
+								text: glyph
+								color: navIndex === pageIndex ? "#111827" : "#6b7280"
+								font.family: "Segoe MDL2 Assets"
+								font.pixelSize: 19
+								horizontalAlignment: Text.AlignHCenter
+								width: parent.width
+							}
+							Text {
+								text: label
+								color: navIndex === pageIndex ? "#111827" : "#6b7280"
+								font.pixelSize: 11
+								horizontalAlignment: Text.AlignHCenter
+								width: parent.width
+								elide: Text.ElideRight
+							}
+						}
+					}
+				}
+
+				Item { Layout.fillHeight: true }
+
+				Rectangle {
+					Layout.fillWidth: true
+					Layout.leftMargin: 6
+					Layout.rightMargin: 6
+					height: 1
+					color: "#e5e7eb"
+				}
+
+				ItemDelegate {
+					id: settingsNavItem
+					Layout.fillWidth: true
+					height: 58
+					highlighted: navIndex === 3
+					onClicked: navIndex = 3
+					padding: 0
+					HoverHandler { cursorShape: Qt.PointingHandCursor }
+
+					background: Rectangle {
+						anchors.fill: parent
+						radius: 12
+						color: settingsNavItem.highlighted ? "#eef2ff" : (settingsNavItem.hovered ? "#f3f4f6" : "transparent")
+						Rectangle {
+							width: 3
+							height: 30
+							radius: 2
+							color: settingsNavItem.highlighted ? "#4f46e5" : "transparent"
+							anchors.left: parent.left
+							anchors.leftMargin: 0
+							anchors.verticalCenter: parent.verticalCenter
+						}
+					}
+
+					contentItem: Column {
+						anchors.left: parent.left
+						anchors.leftMargin: 10
+						anchors.verticalCenter: parent.verticalCenter
+						width: Math.min(56, parent.width - anchors.leftMargin)
+						spacing: 4
+						Text {
+							text: "\uE713"
+							color: navIndex === 3 ? "#111827" : "#6b7280"
+							font.family: "Segoe MDL2 Assets"
+							font.pixelSize: 19
+							horizontalAlignment: Text.AlignHCenter
+							width: parent.width
+						}
+						Text {
+							text: qsTr("设置")
+							color: navIndex === 3 ? "#111827" : "#6b7280"
+							font.pixelSize: 11
+							horizontalAlignment: Text.AlignHCenter
+							width: parent.width
+							elide: Text.ElideRight
+						}
+					}
 				}
 			}
 		}
@@ -150,7 +274,40 @@ ApplicationWindow {
 			id: pages
 			Layout.fillWidth: true
 			Layout.fillHeight: true
-			currentIndex: tabBar.currentIndex
+			currentIndex: navIndex
+
+			Item {
+				Layout.fillWidth: true
+				Layout.fillHeight: true
+				Frame {
+					anchors.fill: parent
+					background: Rectangle {
+						color: "#ffffff"
+						radius: 16
+						border.color: "#cbd5e1"
+						border.width: 1
+					}
+					ColumnLayout {
+						anchors.fill: parent
+						anchors.margins: 16
+						spacing: 10
+
+						Text {
+							text: qsTr("首页")
+							color: "#111827"
+							font.pixelSize: 20
+							font.weight: Font.DemiBold
+						}
+						Text {
+							text: qsTr("这里预留给后续扩展的业务入口。")
+							color: "#6b7280"
+							font.pixelSize: 13
+							wrapMode: Text.Wrap
+							Layout.fillWidth: true
+						}
+					}
+				}
+			}
 
 			Item {
 				Layout.fillWidth: true
@@ -275,8 +432,7 @@ ApplicationWindow {
 										onEntered: hovered = true
 										onExited: hovered = false
 										onClicked: {
-											if (musicController) musicController.playIndex(index)
-											currentSongIndex = index
+										if (musicController) musicController.playIndex(index)
 											currentPlaylistIndex = -1
 										}
 									}
@@ -470,7 +626,6 @@ ApplicationWindow {
 										musicController.importPlaylistToQueue()
 										musicController.playIndex(index)
 										currentPlaylistIndex = index
-										currentSongIndex = index
 									}
 								}
 							}
@@ -478,6 +633,39 @@ ApplicationWindow {
 					}
 				}
 		}
+
+			Item {
+				Layout.fillWidth: true
+				Layout.fillHeight: true
+				Frame {
+					anchors.fill: parent
+					background: Rectangle {
+						color: "#ffffff"
+						radius: 16
+						border.color: "#cbd5e1"
+						border.width: 1
+					}
+					ColumnLayout {
+						anchors.fill: parent
+						anchors.margins: 16
+						spacing: 10
+
+						Text {
+							text: qsTr("设置")
+							color: "#111827"
+							font.pixelSize: 20
+							font.weight: Font.DemiBold
+						}
+						Text {
+							text: qsTr("这里放应用设置、账号、缓存、音源等。")
+							color: "#6b7280"
+							font.pixelSize: 13
+							wrapMode: Text.Wrap
+							Layout.fillWidth: true
+						}
+					}
+				}
+			}
 	}
 
 	}
@@ -564,14 +752,7 @@ ApplicationWindow {
 							fillMode: Image.PreserveAspectFit
 							anchors.centerIn: parent
 						}
-						onClicked: {
-							if (!musicController) return
-							if (currentSongIndex > 0) {
-								currentSongIndex = currentSongIndex - 1
-								currentPlaylistIndex = -1
-								musicController.playIndex(currentSongIndex)
-							}
-						}
+						onClicked: if (musicController) musicController.playPrev()
 					}
 
 					RoundButton {
@@ -602,14 +783,7 @@ ApplicationWindow {
 							fillMode: Image.PreserveAspectFit
 							anchors.centerIn: parent
 						}
-						onClicked: {
-							if (!musicController) return
-							if (currentSongIndex >= 0 && listView.count > 0 && currentSongIndex < listView.count - 1) {
-								currentSongIndex = currentSongIndex + 1
-								currentPlaylistIndex = -1
-								musicController.playIndex(currentSongIndex)
-							}
-						}
+						onClicked: if (musicController) musicController.playNext()
 					}
 				}
 
@@ -666,11 +840,11 @@ ApplicationWindow {
 				Layout.alignment: Qt.AlignRight
 
 				Item {
-					id: playlistBox
+					id: settingsBox
 					width: footerBar.controlIconSize
 					height: footerBar.controlIconSize
 					Image {
-						source: iconList
+						source: iconSettings
 						x: 0; y: 0
 						width: parent.width
 						height: parent.height
@@ -705,6 +879,27 @@ ApplicationWindow {
 						hoverEnabled: true
 						cursorShape: Qt.PointingHandCursor
 						onClicked: lyricBox.active = !lyricBox.active
+					}
+				}
+
+				Item {
+					id: playbackModeBox
+					width: footerBar.controlIconSize
+					height: footerBar.controlIconSize
+					Image {
+						source: playbackModeIcon
+						x: 0; y: 0
+						width: parent.width
+						height: parent.height
+						fillMode: Image.PreserveAspectFit
+					}
+					MouseArea {
+						x: 0; y: 0
+						width: parent.width
+						height: parent.height
+						hoverEnabled: true
+						cursorShape: Qt.PointingHandCursor
+						onClicked: if (musicController) musicController.cyclePlaybackMode()
 					}
 				}
 
@@ -759,11 +954,11 @@ ApplicationWindow {
 				}
 
 				Item {
-					id: settingsBox
+					id: playlistBox
 					width: footerBar.controlIconSize
 					height: footerBar.controlIconSize
 					Image {
-						source: iconSettings
+						source: iconList
 						x: 0; y: 0
 						width: parent.width
 						height: parent.height
@@ -775,7 +970,109 @@ ApplicationWindow {
 						height: parent.height
 						hoverEnabled: true
 						cursorShape: Qt.PointingHandCursor
-						onClicked: {}
+						onClicked: {
+							if (queueDrawer.opened) queueDrawer.close()
+							else queueDrawer.open()
+						}
+					}
+				}
+				Drawer {
+					id: queueDrawer
+					edge: Qt.RightEdge
+					width: Math.round(Math.min(420, Math.min(parent.width * 0.36, (parent.height - 40) / 1.618)))
+					height: Math.round(width * 1.618)
+					y: Math.round((parent.height - height) / 2)
+					modal: false
+					interactive: true
+					background: Rectangle {
+						radius: 12
+						color: "#ffffff"
+						border.color: "#cbd5e1"
+						border.width: 1
+					}
+					contentItem: ColumnLayout {
+						anchors.fill: parent
+						anchors.margins: 12
+						spacing: 10
+						RowLayout {
+							Layout.fillWidth: true
+							Text {
+								text: qsTr("播放列表")
+								color: "#111827"
+								font.pixelSize: 14
+								font.weight: Font.DemiBold
+								Layout.fillWidth: true
+								elide: Text.ElideRight
+							}
+							Text {
+								text: queueListView.count + qsTr(" 首")
+								color: "#6b7280"
+								font.pixelSize: 12
+							}
+						}
+						Frame {
+							Layout.fillWidth: true
+							Layout.fillHeight: true
+							background: Rectangle {
+								color: "#ffffff"
+								radius: 10
+								border.color: "#e5e7eb"
+								border.width: 1
+							}
+							ListView {
+								id: queueListView
+								anchors.fill: parent
+								anchors.margins: 6
+								model: musicController ? musicController.songsModel : null
+								clip: true
+								delegate: Rectangle {
+									width: queueListView.width
+									height: 48
+									radius: 8
+									property bool current: musicController && index === musicController.currentSongIndex
+									property bool hovered: false
+									color: current ? "#dcfce7" : (hovered ? "#f1f5f9" : "#ffffff")
+									border.color: current ? "#22c55e" : "transparent"
+									RowLayout {
+										anchors.fill: parent
+										anchors.margins: 10
+										spacing: 8
+										Text {
+											text: index + 1
+											color: "#9ca3af"
+											font.pixelSize: 12
+											Layout.preferredWidth: 28
+											horizontalAlignment: Text.AlignHCenter
+											verticalAlignment: Text.AlignVCenter
+										}
+										Text {
+											text: title
+											color: "#111827"
+											font.pixelSize: 13
+											elide: Text.ElideRight
+											Layout.fillWidth: true
+										}
+										Text {
+											text: formatMs(duration)
+											color: "#6b7280"
+											font.pixelSize: 12
+											Layout.preferredWidth: 58
+											horizontalAlignment: Text.AlignRight
+										}
+									}
+									MouseArea {
+										anchors.fill: parent
+										hoverEnabled: true
+										onEntered: hovered = true
+										onExited: hovered = false
+										onClicked: {
+											if (musicController) musicController.playIndex(index)
+											queueDrawer.close()
+										}
+									}
+								}
+							}
+						}
 					}
 				}
 				Popup {

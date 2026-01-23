@@ -51,6 +51,11 @@ qt_add_qml_module(appqtrewrite
         "ui-asset/black-backgroud/click_back/歌词_clickBack.svg"
         "ui-asset/black-backgroud/列表2.svg"
         "ui-asset/black-backgroud/设置.svg"
+        "ui-asset/black-backgroud/music_playerModes/单曲循环.svg"
+        "ui-asset/black-backgroud/music_playerModes/顺序.svg"
+        "ui-asset/black-backgroud/music_playerModes/随机.svg"
+        "ui-asset/black-backgroud/music_playerModes/心动模式.svg"
+        "ui-asset/black-backgroud/music_playerModes/循环.svg"
         "ui-asset/LyricsFloatingWindow/播放.svg"
         "ui-asset/LyricsFloatingWindow/暂停.svg"
         "ui-asset/LyricsFloatingWindow/上一首.svg"
@@ -60,6 +65,14 @@ qt_add_qml_module(appqtrewrite
         "ui-asset/LyricsFloatingWindow/锁定.svg"
         "ui-asset/LyricsFloatingWindow/设置.svg"
         "ui-asset/LyricsFloatingWindow/关闭.svg"
+        "ui-asset/LyricsFloatingWindow/InSeting/white/更多.svg"
+        "ui-asset/LyricsFloatingWindow/InSeting/white/配色.svg"
+        "ui-asset/LyricsFloatingWindow/InSeting/white/T.svg"
+        "ui-asset/white-backgroud/music_playerModes/单曲循环.svg"
+        "ui-asset/white-backgroud/music_playerModes/顺序.svg"
+        "ui-asset/white-backgroud/music_playerModes/随机.svg"
+        "ui-asset/white-backgroud/music_playerModes/心动模式.svg"
+        "ui-asset/white-backgroud/music_playerModes/循环.svg"
     NO_CACHEGEN
 )
 

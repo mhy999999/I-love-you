@@ -22,6 +22,7 @@ namespace App
 class MusicController : public QObject
 {
 	Q_OBJECT
+	Q_PROPERTY(int playbackMode READ playbackMode WRITE setPlaybackMode NOTIFY playbackModeChanged)
 	Q_PROPERTY(SongListModel *songsModel READ songsModel CONSTANT)
 	Q_PROPERTY(LyricListModel *lyricModel READ lyricModel CONSTANT)
 	Q_PROPERTY(bool loading READ loading NOTIFY loadingChanged)
@@ -45,8 +46,20 @@ class MusicController : public QObject
 	Q_PROPERTY(QString currentSongArtists READ currentSongArtists NOTIFY currentSongArtistsChanged)
 
 public:
+	enum PlaybackMode
+	{
+		Sequence = 0,
+		Random = 1,
+		LoopAll = 2,
+		LoopOne = 3,
+	};
+	Q_ENUM(PlaybackMode)
+
 	explicit MusicController(QObject *parent = nullptr);
 	~MusicController();
+
+	int playbackMode() const;
+	void setPlaybackMode(int mode);
 
 	SongListModel *songsModel();
 	LyricListModel *lyricModel();
@@ -75,6 +88,7 @@ public:
 	Q_INVOKABLE void playIndex(int index);
 	Q_INVOKABLE void playPrev();
 	Q_INVOKABLE void playNext();
+	Q_INVOKABLE void cyclePlaybackMode();
 	Q_INVOKABLE void seek(qint64 positionMs);
 	Q_INVOKABLE void pause();
 	Q_INVOKABLE void resume();
@@ -101,6 +115,7 @@ signals:
 	void errorOccurred(const QString &message);
 	void currentSongTitleChanged();
 	void currentSongArtistsChanged();
+	void playbackModeChanged();
 
 private:
 	HttpClient httpClient;
@@ -145,6 +160,7 @@ private:
 	int m_playlistLimit = 50;
 	QString m_currentSongTitle;
 	QString m_currentSongArtists;
+	int m_playbackMode = Sequence;
 
 	void setLoading(bool v);
 	void setCurrentUrl(const QUrl &url);
@@ -165,6 +181,9 @@ private:
 	void clearLyric();
 	bool lyricFromCache(const QString &key, Lyric &outLyric);
 	void saveLyricToCache(const QString &key, const Lyric &lyric);
+	void handleMediaFinished();
+	void playNextInternal(bool fromUser);
+	void playPrevInternal(bool fromUser);
 	bool m_playlistHasMore = false;
 };
 

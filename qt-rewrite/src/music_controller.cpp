@@ -15,6 +15,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QRandomGenerator>
 #include <QRegularExpression>
 #include <QSettings>
 #include <QTcpServer>
@@ -322,7 +323,11 @@ MusicController::MusicController(QObject *parent)
 	QString apiDirOverride = settings.value(QStringLiteral("musicApiDir"), QString()).toString().trimmed();
 	bool autoStart = settings.value(QStringLiteral("musicApiAutoStart"), true).toBool();
 	bool autoInstall = settings.value(QStringLiteral("musicApiAutoInstall"), true).toBool();
+	int playbackMode = settings.value(QStringLiteral("playbackMode"), static_cast<int>(Sequence)).toInt();
 	settings.endGroup();
+	if (playbackMode < static_cast<int>(Sequence) || playbackMode > static_cast<int>(LoopOne))
+		playbackMode = static_cast<int>(Sequence);
+	m_playbackMode = playbackMode;
 
 	bool explicitBaseUrl = !apiBaseStr.isEmpty();
 	QUrl apiBase = explicitBaseUrl ? QUrl(apiBaseStr) : resolveLocalMusicApiBaseUrl();
@@ -369,6 +374,10 @@ MusicController::MusicController(QObject *parent)
 	m_player.setAudioOutput(new QAudioOutput(this));
 	QObject::connect(&m_player, &QMediaPlayer::playbackStateChanged, this, [this](QMediaPlayer::PlaybackState state) {
 		setPlaying(state == QMediaPlayer::PlayingState);
+	});
+	QObject::connect(&m_player, &QMediaPlayer::mediaStatusChanged, this, [this](QMediaPlayer::MediaStatus status) {
+		if (status == QMediaPlayer::EndOfMedia)
+			handleMediaFinished();
 	});
 	QObject::connect(&m_player, &QMediaPlayer::positionChanged, this, [this](qint64 pos) {
 		setPositionMs(pos);
@@ -425,6 +434,25 @@ QUrl MusicController::currentUrl() const
 bool MusicController::playing() const
 {
 	return m_playing;
+}
+
+int MusicController::playbackMode() const
+{
+	return m_playbackMode;
+}
+
+void MusicController::setPlaybackMode(int mode)
+{
+	if (mode < static_cast<int>(Sequence) || mode > static_cast<int>(LoopOne))
+		mode = static_cast<int>(Sequence);
+	if (m_playbackMode == mode)
+		return;
+	m_playbackMode = mode;
+	QSettings settings;
+	settings.beginGroup(QStringLiteral("set"));
+	settings.setValue(QStringLiteral("playbackMode"), m_playbackMode);
+	settings.endGroup();
+	emit playbackModeChanged();
 }
 
 int MusicController::volume() const
@@ -706,7 +734,7 @@ bool MusicController::lyricFromCache(const QString &key, Lyric &outLyric)
 	for (const LyricLine &ll : lyric.lines)
 	{
 		QString t = ll.text.trimmed();
-		bool isMeta = (t.contains(QStringLiteral("作词")) || t.contains(QStringLiteral("作曲")) || t.contains(QStringLiteral("编曲")) || t.startsWith(QStringLiteral("词：")) || t.startsWith(QStringLiteral("曲：")) || t.contains(QStringLiteral("制作人")));
+		bool isMeta = (t.contains(QStringLiteral("\u4f5c\u8bcd")) || t.contains(QStringLiteral("\u4f5c\u66f2")) || t.contains(QStringLiteral("\u7f16\u66f2")) || t.startsWith(QStringLiteral("\u8bcd\uff1a")) || t.startsWith(QStringLiteral("\u66f2\uff1a")) || t.contains(QStringLiteral("\u5236\u4f5c\u4eba")));
 		if (!isMeta)
 		{
 			metaOnly = false;
@@ -958,24 +986,17 @@ void MusicController::playIndex(int index)
 
 void MusicController::playPrev()
 {
-	if (m_currentSongIndex <= 0)
-		return;
-	playIndex(m_currentSongIndex - 1);
+	playPrevInternal(true);
 }
 
 void MusicController::playNext()
 {
-	int count = m_songsModel.rowCount();
-	if (count <= 0)
-		return;
-	if (m_currentSongIndex < 0)
-	{
-		playIndex(0);
-		return;
-	}
-	if (m_currentSongIndex + 1 >= count)
-		return;
-	playIndex(m_currentSongIndex + 1);
+	playNextInternal(true);
+}
+
+void MusicController::cyclePlaybackMode()
+{
+	setPlaybackMode((m_playbackMode + 1) % 4);
 }
 
 void MusicController::loadPlaylist(const QString &playlistId)
@@ -1068,6 +1089,100 @@ void MusicController::pause()
 void MusicController::resume()
 {
 	m_player.play();
+}
+
+void MusicController::handleMediaFinished()
+{
+	if (m_currentSongIndex < 0)
+		return;
+	if (m_playbackMode == static_cast<int>(LoopOne))
+	{
+		m_player.setPosition(0);
+		m_player.play();
+		return;
+	}
+	playNextInternal(false);
+}
+
+void MusicController::playNextInternal(bool fromUser)
+{
+	int count = m_songsModel.rowCount();
+	if (count <= 0)
+		return;
+	if (m_currentSongIndex < 0)
+	{
+		playIndex(0);
+		return;
+	}
+
+	if (m_playbackMode == static_cast<int>(Random))
+	{
+		if (count == 1)
+		{
+			playIndex(0);
+			return;
+		}
+		int nextIndex = m_currentSongIndex;
+		for (int i = 0; i < 6 && nextIndex == m_currentSongIndex; ++i)
+			nextIndex = QRandomGenerator::global()->bounded(count);
+		if (nextIndex == m_currentSongIndex)
+			nextIndex = (m_currentSongIndex + 1) % count;
+		playIndex(nextIndex);
+		return;
+	}
+
+	if (m_playbackMode == static_cast<int>(LoopAll))
+	{
+		playIndex((m_currentSongIndex + 1) % count);
+		return;
+	}
+
+	if (m_currentSongIndex + 1 >= count)
+	{
+		if (!fromUser)
+			return;
+		return;
+	}
+	playIndex(m_currentSongIndex + 1);
+}
+
+void MusicController::playPrevInternal(bool fromUser)
+{
+	Q_UNUSED(fromUser);
+	int count = m_songsModel.rowCount();
+	if (count <= 0)
+		return;
+	if (m_currentSongIndex < 0)
+	{
+		playIndex(0);
+		return;
+	}
+
+	if (m_playbackMode == static_cast<int>(Random))
+	{
+		if (count == 1)
+		{
+			playIndex(0);
+			return;
+		}
+		int prevIndex = m_currentSongIndex;
+		for (int i = 0; i < 6 && prevIndex == m_currentSongIndex; ++i)
+			prevIndex = QRandomGenerator::global()->bounded(count);
+		if (prevIndex == m_currentSongIndex)
+			prevIndex = (m_currentSongIndex - 1 + count) % count;
+		playIndex(prevIndex);
+		return;
+	}
+
+	if (m_playbackMode == static_cast<int>(LoopAll))
+	{
+		playIndex((m_currentSongIndex - 1 + count) % count);
+		return;
+	}
+
+	if (m_currentSongIndex <= 0)
+		return;
+	playIndex(m_currentSongIndex - 1);
 }
 
 void MusicController::stop()
