@@ -651,6 +651,21 @@ bool MusicController::lyricFromCache(const QString &key, Lyric &outLyric)
 			continue;
 		lyric.lines.append(ll);
 	}
+	if (lyric.lines.isEmpty())
+		return false;
+	bool metaOnly = true;
+	for (const LyricLine &ll : lyric.lines)
+	{
+		QString t = ll.text.trimmed();
+		bool isMeta = (t.contains(QStringLiteral("作词")) || t.contains(QStringLiteral("作曲")) || t.contains(QStringLiteral("编曲")) || t.startsWith(QStringLiteral("词：")) || t.startsWith(QStringLiteral("曲：")) || t.contains(QStringLiteral("制作人")));
+		if (!isMeta)
+		{
+			metaOnly = false;
+			break;
+		}
+	}
+	if (metaOnly)
+		return false;
 	outLyric = lyric;
 	return true;
 }
@@ -681,11 +696,11 @@ void MusicController::requestLyric(const QString &providerId, const QString &son
 	Lyric cached;
 	if (lyricFromCache(key, cached))
 	{
-		if (requestId != m_lyricRequestId)
-			return;
-		m_lyricModel.setLyric(cached);
-		updateCurrentLyricIndexByPosition(m_player.position());
-		return;
+		if (requestId == m_lyricRequestId)
+		{
+			m_lyricModel.setLyric(cached);
+			updateCurrentLyricIndexByPosition(m_player.position());
+		}
 	}
 	lyricToken = providerManager.lyric(songId, [this, key, requestId](Result<Lyric> result) {
 		if (requestId != m_lyricRequestId)

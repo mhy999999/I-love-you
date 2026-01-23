@@ -476,7 +476,7 @@ QSharedPointer<RequestToken> NeteaseProvider::playUrl(const QString &songId, con
 			return;
 		}
 
-		Logger::info(QStringLiteral("Start unblock process: songId=%1, name=%2")
+		Logger::debug(QStringLiteral("Start unblock process: songId=%1, name=%2")
 					 .arg(songId)
 					 .arg(song.name));
 
@@ -678,12 +678,12 @@ QSharedPointer<RequestToken> NeteaseProvider::playUrl(const QString &songId, con
 		QString searchQuery = parts.join(' ').trimmed();
 		if (searchQuery.size() < 2)
 		{
-			Logger::info(QStringLiteral("Skip GD Studio search: query too short for song \"%1\"").arg(song.name));
+			Logger::debug(QStringLiteral("Skip GD Studio search: query too short for song \"%1\"").arg(song.name));
 			startUnblockProcess(song);
 			return;
 		}
 
-		Logger::info(QStringLiteral("Try GD Studio search: \"%1\"").arg(searchQuery));
+		Logger::debug(QStringLiteral("Try GD Studio search: \"%1\"").arg(searchQuery));
 
 		const QUrl base(QStringLiteral("https://music-api.gdstudio.xyz/api.php"));
 		const QStringList sources = {QStringLiteral("joox"), QStringLiteral("tidal"), QStringLiteral("netease")};
@@ -708,7 +708,7 @@ QSharedPointer<RequestToken> NeteaseProvider::playUrl(const QString &songId, con
 			QString source = sources.at(state->index);
 			state->index++;
 
-			Logger::info(QStringLiteral("GD Studio search using source=%1, query=\"%2\"").arg(source, searchQuery));
+			Logger::debug(QStringLiteral("GD Studio search using source=%1, query=\"%2\"").arg(source, searchQuery));
 
 			QUrl searchUrl = base;
 			QUrlQuery q;
@@ -751,7 +751,7 @@ QSharedPointer<RequestToken> NeteaseProvider::playUrl(const QString &songId, con
 				QJsonArray arr = doc.array();
 				if (arr.isEmpty())
 				{
-					Logger::info(QStringLiteral("GD Studio search empty on source=%1").arg(source));
+					Logger::debug(QStringLiteral("GD Studio search empty on source=%1").arg(source));
 					(*nextFn)();
 					return;
 				}
@@ -788,7 +788,7 @@ QSharedPointer<RequestToken> NeteaseProvider::playUrl(const QString &songId, con
 					trackSource = QStringLiteral("tencent");
 			}
 
-			Logger::info(QStringLiteral("GD Studio using trackId=%1, trackSource=%2 for \"%3\"")
+			Logger::debug(QStringLiteral("GD Studio using trackId=%1, trackSource=%2 for \"%3\"")
 						 .arg(trackId, trackSource, searchQuery));
 
 			QUrl urlUrl = base;
@@ -830,7 +830,7 @@ QSharedPointer<RequestToken> NeteaseProvider::playUrl(const QString &songId, con
 				urlStr = urlStr.trimmed();
 				if (urlStr.isEmpty())
 				{
-					Logger::info(QStringLiteral("GD Studio url empty, try next source"));
+					Logger::debug(QStringLiteral("GD Studio url empty, try next source"));
 					(*nextFn)();
 					return;
 				}
@@ -857,7 +857,7 @@ QSharedPointer<RequestToken> NeteaseProvider::playUrl(const QString &songId, con
 			return;
 		if (*finished)
 			return;
-		Logger::info(QStringLiteral("Try GD Studio direct url for songId=%1").arg(songId));
+		Logger::debug(QStringLiteral("Try GD Studio direct url for songId=%1").arg(songId));
 		QUrl base(QStringLiteral("https://music-api.gdstudio.xyz/api.php"));
 		QUrl urlUrl = base;
 		QUrlQuery uq;
@@ -898,7 +898,7 @@ QSharedPointer<RequestToken> NeteaseProvider::playUrl(const QString &songId, con
 			urlStr = urlStr.trimmed();
 			if (urlStr.isEmpty())
 			{
-				Logger::info(QStringLiteral("GD Studio direct url empty, fallback to search"));
+				Logger::debug(QStringLiteral("GD Studio direct url empty, fallback to search"));
 				onFailed();
 				return;
 			}
@@ -1025,9 +1025,12 @@ QSharedPointer<RequestToken> NeteaseProvider::lyric(const QString &songId, const
 {
 	QSharedPointer<RequestToken> token = QSharedPointer<RequestToken>::create();
 
+	QUrl firstUrl = buildUrl(QStringLiteral("/lyric/new"), {{QStringLiteral("id"), songId}});
+	QString firstUrlStr = firstUrl.toString(QUrl::FullyEncoded);
 	HttpRequestOptions opts;
-	opts.url = buildUrl(QStringLiteral("/lyric/new"), {{QStringLiteral("id"), songId}});
-	QSharedPointer<RequestToken> first = client->sendWithRetry(opts, 2, 500, [this, songId, callback, token](Result<HttpResponse> result) {
+	opts.url = firstUrl;
+	Logger::info(QStringLiteral("Lyric request: %1").arg(firstUrlStr));
+	QSharedPointer<RequestToken> first = client->sendWithRetry(opts, 2, 500, [this, songId, callback, token, firstUrlStr](Result<HttpResponse> result) {
 		if (token->isCancelled())
 			return;
 		if (!result.ok)
@@ -1038,13 +1041,17 @@ QSharedPointer<RequestToken> NeteaseProvider::lyric(const QString &songId, const
 		Result<Lyric> parsed = parseLyric(result.value.body);
 		if (parsed.ok && !parsed.value.lines.isEmpty())
 		{
+			Logger::info(QStringLiteral("Lyric resolved: %1").arg(firstUrlStr));
 			callback(parsed);
 			return;
 		}
 
+		QUrl legacyUrl = buildUrl(QStringLiteral("/lyric"), {{QStringLiteral("id"), songId}});
+		QString legacyUrlStr = legacyUrl.toString(QUrl::FullyEncoded);
 		HttpRequestOptions legacy;
-		legacy.url = buildUrl(QStringLiteral("/lyric"), {{QStringLiteral("id"), songId}});
-		QSharedPointer<RequestToken> second = client->sendWithRetry(legacy, 1, 500, [this, callback, token](Result<HttpResponse> legacyResult) {
+		legacy.url = legacyUrl;
+		Logger::info(QStringLiteral("Lyric request(legacy): %1").arg(legacyUrlStr));
+		QSharedPointer<RequestToken> second = client->sendWithRetry(legacy, 1, 500, [this, callback, token, legacyUrlStr](Result<HttpResponse> legacyResult) {
 			if (token->isCancelled())
 				return;
 			if (!legacyResult.ok)
@@ -1052,7 +1059,10 @@ QSharedPointer<RequestToken> NeteaseProvider::lyric(const QString &songId, const
 				callback(Result<Lyric>::failure(legacyResult.error));
 				return;
 			}
-			callback(parseLyric(legacyResult.value.body));
+			Result<Lyric> lr = parseLyric(legacyResult.value.body);
+			if (lr.ok && !lr.value.lines.isEmpty())
+				Logger::info(QStringLiteral("Lyric resolved: %1").arg(legacyUrlStr));
+			callback(lr);
 		});
 		QObject::connect(token.data(), &RequestToken::cancelled, second.data(), [second]() {
 			second->cancel();
@@ -1079,7 +1089,7 @@ QSharedPointer<RequestToken> NeteaseProvider::cover(const QUrl &coverUrl, const 
 		}
 		QByteArray ct = result.value.headers.value("Content-Type");
 		if (!ct.isEmpty())
-			Logger::info(QStringLiteral("Cover Content-Type: %1").arg(QString::fromUtf8(ct)));
+			Logger::debug(QStringLiteral("Cover Content-Type: %1").arg(QString::fromUtf8(ct)));
 		callback(Result<QByteArray>::success(result.value.body));
 	});
 }
@@ -1380,6 +1390,74 @@ Result<Lyric> NeteaseProvider::parseLyric(const QByteArray &body) const
 						start = -1;
 					}
 				}
+			}
+		}
+
+		{
+			QString normalized = text;
+			normalized.replace("\r\n", "\n");
+			normalized.replace("\r", "\n");
+			QStringList lines = normalized.split('\n');
+			QRegularExpression yrcHead(QStringLiteral("^\\[(\\d+)\\s*,\\s*(\\d+)\\]"));
+			QRegularExpression lrcHead(QStringLiteral("^\\[(\\d{1,2}):(\\d{2})(?:\\.(\\d{1,3}))?\\]"));
+			QRegularExpression chunk(QStringLiteral("\\([0-9]+\\s*,\\s*[0-9]+\\s*,\\s*[0-9]+\\)"));
+			for (const QString &line : lines)
+			{
+				QString l = line;
+				qint64 t = 0;
+				bool matched = false;
+				{
+					QRegularExpressionMatch hm = yrcHead.match(l);
+					if (hm.hasMatch())
+					{
+						t = static_cast<qint64>(hm.captured(1).toLongLong());
+						l.remove(yrcHead);
+						matched = true;
+					}
+				}
+				if (!matched)
+				{
+					QRegularExpressionMatch lm = lrcHead.match(l);
+					if (lm.hasMatch())
+					{
+						bool okMin = false;
+						bool okSec = false;
+						int minutes = lm.captured(1).toInt(&okMin);
+						int seconds = lm.captured(2).toInt(&okSec);
+						if (okMin && okSec)
+						{
+							int millis = 0;
+							QString msPart = lm.captured(3);
+							if (!msPart.isEmpty())
+							{
+								bool okMs = false;
+								int rawMs = msPart.toInt(&okMs);
+								if (okMs)
+								{
+									if (msPart.size() == 1)
+										millis = rawMs * 100;
+									else if (msPart.size() == 2)
+										millis = rawMs * 10;
+									else
+										millis = rawMs;
+								}
+							}
+							t = static_cast<qint64>(minutes) * 60000 + static_cast<qint64>(seconds) * 1000 + millis;
+							l.remove(lrcHead);
+							matched = true;
+						}
+					}
+				}
+				if (!matched)
+					continue;
+				l.remove(chunk);
+				QString trimmed = l.trimmed();
+				if (trimmed.isEmpty())
+					continue;
+				LyricLine ll;
+				ll.timeMs = t;
+				ll.text = trimmed;
+				lyric.lines.append(ll);
 			}
 		}
 

@@ -313,6 +313,7 @@ ApplicationWindow {
 										width: lyricView.width
 										text: model.text
 										color: musicController && index === musicController.currentLyricIndex ? "#111827" : "#9ca3af"
+										horizontalAlignment: Text.AlignHCenter
 										wrapMode: Text.Wrap
 									}
 								}
