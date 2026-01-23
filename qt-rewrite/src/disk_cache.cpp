@@ -56,9 +56,35 @@ QUrl DiskCache::fileUrlForKey(const QString &key) const
 	return QUrl::fromLocalFile(filePathForKey(key));
 }
 
+QString DiskCache::filePathForKeyExt(const QString &key, const QString &ext) const
+{
+	QString dir = ensureDir();
+	QString name = sha1Hex(key);
+	QString e = ext.trimmed().toLower();
+	if (e.isEmpty())
+		e = QStringLiteral("bin");
+	return QDir(dir).filePath(name + QStringLiteral(".") + e);
+}
+
+QUrl DiskCache::fileUrlForKeyExt(const QString &key, const QString &ext) const
+{
+	return QUrl::fromLocalFile(filePathForKeyExt(key, ext));
+}
+
 bool DiskCache::contains(const QString &key) const
 {
 	return QFileInfo::exists(filePathForKey(key));
+}
+
+bool DiskCache::containsAny(const QString &key, const QStringList &exts) const
+{
+	for (const QString &e : exts)
+	{
+		QString path = filePathForKeyExt(key, e);
+		if (QFileInfo::exists(path))
+			return true;
+	}
+	return false;
 }
 
 void DiskCache::touch(const QString &filePath)
@@ -88,6 +114,20 @@ bool DiskCache::get(const QString &key, QByteArray &outData)
 bool DiskCache::put(const QString &key, const QByteArray &data)
 {
 	QString path = filePathForKey(key);
+	QFile f(path);
+	QDir().mkpath(QFileInfo(path).absolutePath());
+	if (!f.open(QIODevice::WriteOnly))
+		return false;
+	f.write(data);
+	f.close();
+	touch(path);
+	prune();
+	return true;
+}
+
+bool DiskCache::putWithExt(const QString &key, const QByteArray &data, const QString &ext)
+{
+	QString path = filePathForKeyExt(key, ext);
 	QFile f(path);
 	QDir().mkpath(QFileInfo(path).absolutePath());
 	if (!f.open(QIODevice::WriteOnly))
@@ -133,6 +173,28 @@ void DiskCache::prune()
 		QFile::remove(fi.absoluteFilePath());
 		total -= size;
 	}
+}
+
+QString DiskCache::resolveExistingFilePathForKey(const QString &key, const QStringList &exts) const
+{
+	for (const QString &e : exts)
+	{
+		QString p = filePathForKeyExt(key, e);
+		if (QFileInfo::exists(p))
+			return p;
+	}
+	QString binPath = filePathForKey(key);
+	if (QFileInfo::exists(binPath))
+		return binPath;
+	return QString();
+}
+
+QUrl DiskCache::resolveExistingFileUrlForKey(const QString &key, const QStringList &exts) const
+{
+	QString p = resolveExistingFilePathForKey(key, exts);
+	if (p.isEmpty())
+		return QUrl();
+	return QUrl::fromLocalFile(p);
 }
 
 }

@@ -1069,7 +1069,7 @@ QSharedPointer<RequestToken> NeteaseProvider::cover(const QUrl &coverUrl, const 
 {
 	HttpRequestOptions opts;
 	opts.url = coverUrl;
-	opts.headers.insert("Accept", "image/avif,image/webp,image/apng,image/*,*/*;q=0.8");
+	opts.headers.insert("Accept", "image/jpeg,image/png");
 	opts.timeoutMs = 15000;
 	return client->sendWithRetry(opts, 2, 500, [callback](Result<HttpResponse> result) {
 		if (!result.ok)
@@ -1077,6 +1077,9 @@ QSharedPointer<RequestToken> NeteaseProvider::cover(const QUrl &coverUrl, const 
 			callback(Result<QByteArray>::failure(result.error));
 			return;
 		}
+		QByteArray ct = result.value.headers.value("Content-Type");
+		if (!ct.isEmpty())
+			Logger::info(QStringLiteral("Cover Content-Type: %1").arg(QString::fromUtf8(ct)));
 		callback(Result<QByteArray>::success(result.value.body));
 	});
 }
@@ -1111,6 +1114,18 @@ QSharedPointer<RequestToken> NeteaseProvider::playlistTracks(const QString &play
 
 Result<QList<Song>> NeteaseProvider::parseSearchSongs(const QByteArray &body) const
 {
+	auto adjustCover = [](const QUrl &u) {
+		if (!u.isValid())
+			return u;
+		QUrl v = u;
+		QUrlQuery q(v);
+		if (!q.hasQueryItem(QStringLiteral("param")))
+		{
+			q.addQueryItem(QStringLiteral("param"), QStringLiteral("300y300"));
+			v.setQuery(q);
+		}
+		return v;
+	};
 	QJsonParseError err{};
 	QJsonDocument doc = QJsonDocument::fromJson(body, &err);
 	if (err.error != QJsonParseError::NoError || !doc.isObject())
@@ -1145,7 +1160,7 @@ Result<QList<Song>> NeteaseProvider::parseSearchSongs(const QByteArray &body) co
 		QJsonObject al = o.value(QStringLiteral("al")).toObject();
 		s.album.id = al.value(QStringLiteral("id")).toVariant().toString();
 		s.album.name = al.value(QStringLiteral("name")).toString();
-		s.album.coverUrl = QUrl(al.value(QStringLiteral("picUrl")).toString());
+		s.album.coverUrl = adjustCover(QUrl(al.value(QStringLiteral("picUrl")).toString()));
 		s.durationMs = o.value(QStringLiteral("dt")).toInteger();
 		songs.append(s);
 	}
@@ -1183,7 +1198,16 @@ Result<Song> NeteaseProvider::parseSongDetail(const QByteArray &body) const
 	QJsonObject al = o.value(QStringLiteral("al")).toObject();
 	s.album.id = al.value(QStringLiteral("id")).toVariant().toString();
 	s.album.name = al.value(QStringLiteral("name")).toString();
-	s.album.coverUrl = QUrl(al.value(QStringLiteral("picUrl")).toString());
+	{
+		QUrl u(al.value(QStringLiteral("picUrl")).toString());
+		QUrlQuery q(u);
+		if (!q.hasQueryItem(QStringLiteral("param")))
+		{
+			q.addQueryItem(QStringLiteral("param"), QStringLiteral("300y300"));
+			u.setQuery(q);
+		}
+		s.album.coverUrl = u;
+	}
 	QJsonArray artistArr = o.value(QStringLiteral("ar")).toArray();
 	for (const QJsonValue &av : artistArr)
 	{
@@ -1593,7 +1617,16 @@ Result<PlaylistTracksPage> NeteaseProvider::parsePlaylistTracks(const QString &p
 		QJsonObject al = o.value(QStringLiteral("al")).toObject();
 		s.album.id = al.value(QStringLiteral("id")).toVariant().toString();
 		s.album.name = al.value(QStringLiteral("name")).toString();
-		s.album.coverUrl = QUrl(al.value(QStringLiteral("picUrl")).toString());
+		{
+			QUrl u(al.value(QStringLiteral("picUrl")).toString());
+			QUrlQuery q(u);
+			if (!q.hasQueryItem(QStringLiteral("param")))
+			{
+				q.addQueryItem(QStringLiteral("param"), QStringLiteral("300y300"));
+				u.setQuery(q);
+			}
+			s.album.coverUrl = u;
+		}
 		s.durationMs = o.value(QStringLiteral("dt")).toInteger();
 		songs.append(s);
 	}

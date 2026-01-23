@@ -41,6 +41,7 @@ class MusicController : public QObject
 
 public:
 	explicit MusicController(QObject *parent = nullptr);
+	~MusicController();
 
 	SongListModel *songsModel();
 	LyricListModel *lyricModel();
@@ -101,6 +102,7 @@ private:
 	QSharedPointer<RequestToken> playUrlToken;
 	QSharedPointer<RequestToken> lyricToken;
 	QSharedPointer<RequestToken> coverToken;
+	QSharedPointer<RequestToken> songDetailToken;
 	QSharedPointer<RequestToken> playlistDetailToken;
 	QSharedPointer<RequestToken> playlistTracksToken;
 	QProcess *musicApiProcess = nullptr;

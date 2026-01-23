@@ -20,6 +20,10 @@
 #include <QTcpServer>
 #include <QThread>
 #include <QTimer>
+#include <QBuffer>
+#include <QImage>
+#include <QImageReader>
+#include <QImageWriter>
 
 #include "logger.h"
 
@@ -375,6 +379,24 @@ MusicController::MusicController(QObject *parent)
 	});
 }
 
+MusicController::~MusicController()
+{
+	if (musicApiProcess)
+	{
+		if (musicApiProcess->state() != QProcess::NotRunning)
+		{
+			musicApiProcess->terminate();
+			if (!musicApiProcess->waitForFinished(1200))
+			{
+				musicApiProcess->kill();
+				musicApiProcess->waitForFinished(600);
+			}
+		}
+		delete musicApiProcess;
+		musicApiProcess = nullptr;
+	}
+}
+
 SongListModel *MusicController::songsModel()
 {
 	return &m_songsModel;
@@ -512,6 +534,7 @@ void MusicController::setCoverSource(const QUrl &url)
 	if (m_coverSource == url)
 		return;
 	m_coverSource = url;
+	Logger::info(QStringLiteral("Cover source: %1").arg(m_coverSource.toString()));
 	emit coverSourceChanged();
 }
 
@@ -682,28 +705,83 @@ void MusicController::requestCover(const QUrl &coverUrl)
 {
 	// 记录本次请求序号，避免快速切歌时旧封面覆盖新封面
 	quint64 requestId = ++m_coverRequestId;
+	Logger::info(QStringLiteral("Request cover: %1").arg(coverUrl.toString()));
 	if (!coverUrl.isValid() || coverUrl.isEmpty())
 	{
 		setCoverSource({});
 		return;
 	}
 	QString key = coverUrl.toString();
-	if (imageCache.contains(key))
+	QStringList exts{QStringLiteral("png"), QStringLiteral("jpg"), QStringLiteral("jpeg"), QStringLiteral("gif"), QStringLiteral("bmp")};
+	if (imageCache.containsAny(key, exts))
 	{
 		if (requestId != m_coverRequestId)
 			return;
-		setCoverSource(imageCache.fileUrlForKey(key));
+		QUrl u = imageCache.resolveExistingFileUrlForKey(key, exts);
+		Logger::info(QStringLiteral("Cover cache hit: %1").arg(u.toString()));
+		setCoverSource(u);
 		return;
 	}
 	if (coverToken)
 		coverToken->cancel();
-	coverToken = providerManager.cover(coverUrl, [this, key, requestId](Result<QByteArray> result) {
+	coverToken = providerManager.cover(coverUrl, [this, key, requestId, coverUrl](Result<QByteArray> result) {
 		if (requestId != m_coverRequestId)
 			return;
 		if (!result.ok)
+		{
+			Logger::warning(QStringLiteral("Cover fetch failed: %1").arg(coverUrl.toString()));
 			return;
-		imageCache.put(key, result.value);
-		setCoverSource(imageCache.fileUrlForKey(key));
+		}
+		auto sniffExt = [](const QByteArray &data) -> QString {
+			if (data.size() >= 8)
+			{
+				const uchar *p = reinterpret_cast<const uchar *>(data.constData());
+				if (p[0] == 0x89 && p[1] == 0x50 && p[2] == 0x4E && p[3] == 0x47 && p[4] == 0x0D && p[5] == 0x0A && p[6] == 0x1A && p[7] == 0x0A)
+					return QStringLiteral("png");
+			}
+			if (data.size() >= 3)
+			{
+				const uchar *p = reinterpret_cast<const uchar *>(data.constData());
+				if (p[0] == 0xFF && p[1] == 0xD8 && p[2] == 0xFF)
+					return QStringLiteral("jpg");
+			}
+			if (data.size() >= 6 && (QByteArray(data.constData(), 6) == QByteArray("GIF87a") || QByteArray(data.constData(), 6) == QByteArray("GIF89a")))
+				return QStringLiteral("gif");
+			if (data.size() >= 2 && QByteArray(data.constData(), 2) == QByteArray("BM"))
+				return QStringLiteral("bmp");
+			return QString();
+		};
+		QString ext = sniffExt(result.value);
+		if (ext.isEmpty())
+		{
+			QBuffer buf;
+			buf.setData(result.value);
+			buf.open(QIODevice::ReadOnly);
+			QImageReader reader(&buf);
+			QImage img = reader.read();
+			if (!img.isNull())
+			{
+				QBuffer out;
+				out.open(QIODevice::WriteOnly);
+				QImageWriter w(&out, "PNG");
+				if (w.write(img))
+				{
+					imageCache.putWithExt(key, out.data(), QStringLiteral("png"));
+					QUrl u = imageCache.fileUrlForKeyExt(key, QStringLiteral("png"));
+					Logger::info(QStringLiteral("Cover saved as PNG: %1").arg(u.toString()));
+					setCoverSource(u);
+					return;
+				}
+			}
+			// 无法解析，直接使用远程地址作为兜底
+			Logger::warning(QStringLiteral("Cover decode failed, using remote url: %1").arg(coverUrl.toString()));
+			setCoverSource(coverUrl);
+			return;
+		}
+		imageCache.putWithExt(key, result.value, ext);
+		QUrl u = imageCache.fileUrlForKeyExt(key, ext);
+		Logger::info(QStringLiteral("Cover saved: %1").arg(u.toString()));
+		setCoverSource(u);
 	});
 }
 
@@ -769,7 +847,27 @@ void MusicController::playIndex(int index)
 				 .arg(static_cast<qint64>(song.durationMs)));
 	clearLyric();
 	setCoverSource({});
-	requestCover(song.album.coverUrl);
+	if (song.album.coverUrl.isValid() && !song.album.coverUrl.isEmpty())
+	{
+		requestCover(song.album.coverUrl);
+	}
+	else
+	{
+		Logger::info(QStringLiteral("Cover url missing, fetching song detail for cover"));
+		if (songDetailToken)
+			songDetailToken->cancel();
+		QString prefer = providerId;
+		if (prefer.isEmpty())
+			prefer = source;
+		songDetailToken = providerManager.songDetail(songId, [this, requestId](Result<Song> detail) {
+			if (requestId != m_playRequestId)
+				return;
+			if (!detail.ok)
+				return;
+			if (detail.value.album.coverUrl.isValid() && !detail.value.album.coverUrl.isEmpty())
+				requestCover(detail.value.album.coverUrl);
+		}, QStringList() << prefer << QStringLiteral("netease"));
+	}
 	if (providerId == QStringLiteral("netease"))
 		requestLyric(providerId, songId);
 	else if (source == QStringLiteral("netease"))

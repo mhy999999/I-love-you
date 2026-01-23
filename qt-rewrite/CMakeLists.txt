@@ -13,7 +13,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Quick Network Multimedia)
+find_package(Qt6 REQUIRED COMPONENTS Quick Network Multimedia Svg)
 
 qt_standard_project_setup(REQUIRES 6.8)
 
@@ -36,6 +36,15 @@ qt_add_qml_module(appqtrewrite
     URI qtrewrite
     QML_FILES
         Main.qml
+    RESOURCES
+        "ui-asset/black-backgroud/上一首.svg"
+        "ui-asset/black-backgroud/下一首.svg"
+        "ui-asset/black-backgroud/停止.svg"
+        "ui-asset/black-backgroud/播放.svg"
+        "ui-asset/black-backgroud/暂停.svg"
+        "ui-asset/black-backgroud/静音.svg"
+        "ui-asset/black-backgroud/音量.svg"
+    NO_CACHEGEN
 )
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
@@ -55,8 +64,10 @@ target_include_directories(appqtrewrite
 )
 
 target_link_libraries(appqtrewrite
-	PRIVATE Qt6::Quick Qt6::Network Qt6::Multimedia
+	PRIVATE Qt6::Quick Qt6::Network Qt6::Multimedia Qt6::Svg
 )
+
+target_compile_options(appqtrewrite PRIVATE /wd4828)
 
 include(GNUInstallDirs)
 install(TARGETS appqtrewrite
