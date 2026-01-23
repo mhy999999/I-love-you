@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import Qt.labs.settings
+import QtQuick.Window
 
 Window {
     id: overlay
@@ -10,8 +11,10 @@ Window {
     x: settings.winX
     y: settings.winY
     visible: false
+    visibility: Window.Windowed
     color: "transparent"
-    flags: Qt.FramelessWindowHint | Qt.Tool | (settings.stayOnTop ? Qt.WindowStaysOnTopHint : 0) | (locked ? Qt.WindowTransparentForInput : 0)
+    flags: Qt.FramelessWindowHint | (settings.stayOnTop ? Qt.WindowStaysOnTopHint : 0) | (locked ? Qt.WindowTransparentForInput : 0)
+    transientParent: null
     minimumWidth: 600
     minimumHeight: 200
 
