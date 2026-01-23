@@ -35,6 +35,12 @@ public:
 	const QList<Song> &songs() const;
 	Q_INVOKABLE QVariantMap get(int row) const;
 
+    // 供控制器维护队列
+    void append(const Song &song);
+    void insert(int index, const Song &song);
+    void removeAt(int index);
+    void clear();
+
 private:
 	QList<Song> m_songs;
 };

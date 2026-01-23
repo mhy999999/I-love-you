@@ -308,6 +308,7 @@ MusicController::MusicController(QObject *parent)
 	, m_songsModel(this)
 	, m_lyricModel(this)
 	, m_playlistModel(this)
+	, m_queueModel(this)
 	, m_player(this)
 	, imageCache(QStringLiteral("images"), 200LL * 1024 * 1024)
 	, lyricCache(QStringLiteral("lyrics"), 20LL * 1024 * 1024)
@@ -386,6 +387,8 @@ MusicController::MusicController(QObject *parent)
 	QObject::connect(&m_player, &QMediaPlayer::durationChanged, this, [this](qint64 dur) {
 		setDurationMs(dur);
 	});
+
+	loadQueueFromSettings();
 }
 
 MusicController::~MusicController()
@@ -419,6 +422,11 @@ LyricListModel *MusicController::lyricModel()
 SongListModel *MusicController::playlistModel()
 {
 	return &m_playlistModel;
+}
+
+SongListModel *MusicController::queueModel() const
+{
+	return const_cast<SongListModel*>(&m_queueModel);
 }
 
 bool MusicController::loading() const
@@ -912,14 +920,14 @@ void MusicController::search(const QString &keyword)
 
 void MusicController::playIndex(int index)
 {
-	if (index < 0 || index >= m_songsModel.rowCount())
+	if (index < 0 || index >= m_queueModel.rowCount())
 		return;
 	setCurrentSongIndex(index);
 	// 记录本次播放序号，避免旧 playUrl 回调覆盖当前播放
 	quint64 requestId = ++m_playRequestId;
 	if (playUrlToken)
 		playUrlToken->cancel();
-	const QList<Song> &songs = m_songsModel.songs();
+	const QList<Song> &songs = m_queueModel.songs();
 	if (index < 0 || index >= songs.size())
 		return;
 	const Song &song = songs.at(index);
@@ -1068,7 +1076,47 @@ void MusicController::loadMorePlaylist()
 
 void MusicController::importPlaylistToQueue()
 {
-	m_songsModel.setSongs(m_playlistModel.songs());
+    auto songKey = [](const Song &x) {
+        QString p = x.providerId.isEmpty() ? x.source : x.providerId;
+        return p + QStringLiteral(":") + x.id;
+    };
+    QList<Song> combined = m_queueModel.songs();
+    for (const Song &s : m_playlistModel.songs()) {
+        QString key = songKey(s);
+        bool dup = false;
+        for (const Song &q : combined) {
+            if (songKey(q) == key) { dup = true; break; }
+        }
+        if (!dup) combined.append(s);
+    }
+    Logger::info(QStringLiteral("Import playlist to queue, added=%1, totalQueue=%2")
+                 .arg(m_playlistModel.rowCount())
+                 .arg(combined.size()));
+    m_queueModel.setSongs(combined);
+	saveQueueToSettings();
+}
+
+void MusicController::playPlaylistTrack(int index)
+{
+	if (index < 0 || index >= m_playlistModel.rowCount())
+		return;
+    auto songKey = [](const Song &x) {
+        QString p = x.providerId.isEmpty() ? x.source : x.providerId;
+        return p + QStringLiteral(":") + x.id;
+    };
+    const Song &s = m_playlistModel.songs().at(index);
+    Logger::info(QStringLiteral("Play playlist track index=%1, title=%2").arg(index).arg(s.name));
+    QString key = songKey(s);
+    const QList<Song> &queue = m_queueModel.songs();
+    for (int i = 0; i < queue.size(); ++i) {
+        if (songKey(queue.at(i)) == key) { playIndex(i); return; }
+    }
+    importPlaylistToQueue();
+    // 新增后位置发生变化：重新在队列里查找并播放
+    const QList<Song> &queue2 = m_queueModel.songs();
+    for (int i = 0; i < queue2.size(); ++i) {
+        if (songKey(queue2.at(i)) == key) { playIndex(i); return; }
+    }
 }
 
 void MusicController::seek(qint64 positionMs)
@@ -1106,7 +1154,7 @@ void MusicController::handleMediaFinished()
 
 void MusicController::playNextInternal(bool fromUser)
 {
-	int count = m_songsModel.rowCount();
+	int count = m_queueModel.rowCount();
 	if (count <= 0)
 		return;
 	if (m_currentSongIndex < 0)
@@ -1149,7 +1197,7 @@ void MusicController::playNextInternal(bool fromUser)
 void MusicController::playPrevInternal(bool fromUser)
 {
 	Q_UNUSED(fromUser);
-	int count = m_songsModel.rowCount();
+	int count = m_queueModel.rowCount();
 	if (count <= 0)
 		return;
 	if (m_currentSongIndex < 0)
@@ -1188,6 +1236,153 @@ void MusicController::playPrevInternal(bool fromUser)
 void MusicController::stop()
 {
 	m_player.stop();
+}
+
+void MusicController::queuePlayFromSearchIndex(int index)
+{
+	if (index < 0 || index >= m_songsModel.rowCount())
+		return;
+	const QList<Song> &src = m_songsModel.songs();
+	Song s = src.at(index);
+    Logger::info(QStringLiteral("Queue play from search index: %1, title=%2").arg(index).arg(s.name));
+    auto songKey = [](const Song &x) {
+        QString p = x.providerId.isEmpty() ? x.source : x.providerId;
+        return p + QStringLiteral(":") + x.id;
+    };
+    QString key = songKey(s);
+    int existing = -1;
+    const QList<Song> &queue = m_queueModel.songs();
+    for (int i = 0; i < queue.size(); ++i) {
+        if (songKey(queue.at(i)) == key) { existing = i; break; }
+    }
+    if (existing >= 0) {
+        Logger::info(QStringLiteral("Song already in queue at %1, jumping").arg(existing));
+        playIndex(existing);
+        return;
+    }
+    m_queueModel.append(s);
+    Logger::info(QStringLiteral("Song appended to queue, newIndex=%1").arg(m_queueModel.rowCount() - 1));
+    saveQueueToSettings();
+    playIndex(m_queueModel.rowCount() - 1);
+}
+
+void MusicController::queueAddFromSearchIndex(int index, bool next)
+{
+	if (index < 0 || index >= m_songsModel.rowCount())
+		return;
+	const QList<Song> &src = m_songsModel.songs();
+	Song s = src.at(index);
+    Logger::info(QStringLiteral("Queue add from search index: %1, next=%2, title=%3").arg(index).arg(next).arg(s.name));
+    auto songKey = [](const Song &x) {
+        QString p = x.providerId.isEmpty() ? x.source : x.providerId;
+        return p + QStringLiteral(":") + x.id;
+    };
+    QString key = songKey(s);
+    int existing = -1;
+    const QList<Song> &queue = m_queueModel.songs();
+    for (int i = 0; i < queue.size(); ++i) {
+        if (songKey(queue.at(i)) == key) { existing = i; break; }
+    }
+    if (existing >= 0) {
+        Logger::info(QStringLiteral("Song already in queue at %1, jumping").arg(existing));
+        playIndex(existing);
+        return;
+    }
+    int insertPos = m_queueModel.rowCount();
+	if (next && m_currentSongIndex >= 0)
+		insertPos = qMin(m_currentSongIndex + 1, m_queueModel.rowCount());
+	m_queueModel.insert(insertPos, s);
+    Logger::info(QStringLiteral("Song inserted into queue at %1").arg(insertPos));
+	saveQueueToSettings();
+}
+
+void MusicController::queueRemoveAt(int index)
+{
+	m_queueModel.removeAt(index);
+	saveQueueToSettings();
+}
+
+void MusicController::queueClear()
+{
+	m_queueModel.clear();
+	saveQueueToSettings();
+}
+
+void MusicController::saveQueueToSettings()
+{
+	QJsonArray arr;
+	for (const Song &s : m_queueModel.songs())
+	{
+		QJsonObject o;
+		o.insert(QStringLiteral("providerId"), s.providerId);
+		o.insert(QStringLiteral("source"), s.source);
+		o.insert(QStringLiteral("id"), s.id);
+		o.insert(QStringLiteral("name"), s.name);
+		QJsonArray artistArr;
+		for (const Artist &a : s.artists)
+		{
+			QJsonObject ao;
+			ao.insert(QStringLiteral("id"), a.id);
+			ao.insert(QStringLiteral("name"), a.name);
+			artistArr.append(ao);
+		}
+		o.insert(QStringLiteral("artists"), artistArr);
+		QJsonObject albumObj;
+		albumObj.insert(QStringLiteral("id"), s.album.id);
+		albumObj.insert(QStringLiteral("name"), s.album.name);
+		albumObj.insert(QStringLiteral("coverUrl"), s.album.coverUrl.toString());
+		o.insert(QStringLiteral("album"), albumObj);
+		o.insert(QStringLiteral("durationMs"), static_cast<double>(s.durationMs));
+		arr.append(o);
+	}
+	QJsonObject root;
+	root.insert(QStringLiteral("items"), arr);
+	QJsonDocument doc(root);
+	QSettings settings;
+	settings.beginGroup(QStringLiteral("queue"));
+	settings.setValue(QStringLiteral("items"), QString::fromUtf8(doc.toJson(QJsonDocument::Compact)));
+	settings.endGroup();
+}
+
+void MusicController::loadQueueFromSettings()
+{
+	QSettings settings;
+	settings.beginGroup(QStringLiteral("queue"));
+	QString json = settings.value(QStringLiteral("items"), QString()).toString();
+	settings.endGroup();
+	if (json.trimmed().isEmpty())
+		return;
+	QJsonParseError err{};
+	QJsonDocument doc = QJsonDocument::fromJson(json.toUtf8(), &err);
+	if (err.error != QJsonParseError::NoError || !doc.isObject())
+		return;
+	QJsonArray arr = doc.object().value(QStringLiteral("items")).toArray();
+	QList<Song> restored;
+	for (const QJsonValue &v : arr)
+	{
+		QJsonObject o = v.toObject();
+		Song s;
+		s.providerId = o.value(QStringLiteral("providerId")).toString();
+		s.source = o.value(QStringLiteral("source")).toString();
+		s.id = o.value(QStringLiteral("id")).toString();
+		s.name = o.value(QStringLiteral("name")).toString();
+		s.durationMs = static_cast<qint64>(o.value(QStringLiteral("durationMs")).toDouble());
+		QJsonArray artistArr = o.value(QStringLiteral("artists")).toArray();
+		for (const QJsonValue &av : artistArr)
+		{
+			QJsonObject ao = av.toObject();
+			Artist a;
+			a.id = ao.value(QStringLiteral("id")).toString();
+			a.name = ao.value(QStringLiteral("name")).toString();
+			s.artists.append(a);
+		}
+		QJsonObject albumObj = o.value(QStringLiteral("album")).toObject();
+		s.album.id = albumObj.value(QStringLiteral("id")).toString();
+		s.album.name = albumObj.value(QStringLiteral("name")).toString();
+		s.album.coverUrl = QUrl(albumObj.value(QStringLiteral("coverUrl")).toString());
+		restored.append(s);
+	}
+	m_queueModel.setSongs(restored);
 }
 
 }

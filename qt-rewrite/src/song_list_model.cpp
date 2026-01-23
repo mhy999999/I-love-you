@@ -94,4 +94,38 @@ QVariantMap SongListModel::get(int row) const
 	return map;
 }
 
+void SongListModel::append(const Song &song)
+{
+    int pos = m_songs.size();
+    beginInsertRows(QModelIndex(), pos, pos);
+    m_songs.append(song);
+    endInsertRows();
+}
+
+void SongListModel::insert(int index, const Song &song)
+{
+    int pos = qBound(0, index, m_songs.size());
+    beginInsertRows(QModelIndex(), pos, pos);
+    m_songs.insert(pos, song);
+    endInsertRows();
+}
+
+void SongListModel::removeAt(int index)
+{
+    if (index < 0 || index >= m_songs.size())
+        return;
+    beginRemoveRows(QModelIndex(), index, index);
+    m_songs.removeAt(index);
+    endRemoveRows();
+}
+
+void SongListModel::clear()
+{
+    if (m_songs.isEmpty())
+        return;
+    beginResetModel();
+    m_songs.clear();
+    endResetModel();
+}
+
 }

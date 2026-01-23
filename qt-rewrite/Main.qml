@@ -7,6 +7,7 @@ import QtMultimedia
 
 // 应用主窗口
 ApplicationWindow {
+    id: appWindow
 	width: 960
 	height: 640
 	visible: true
@@ -25,6 +26,7 @@ ApplicationWindow {
 	property url iconVolume: Qt.resolvedUrl("ui-asset/black-backgroud/声音.svg")
 	property url iconVolumeMute: Qt.resolvedUrl("ui-asset/black-backgroud/声音静音.svg")
 	property url iconList: Qt.resolvedUrl("ui-asset/black-backgroud/列表2.svg")
+	property url iconDelete: Qt.resolvedUrl("ui-asset/black-backgroud/删除.svg")
 	property url iconSettings: Qt.resolvedUrl("ui-asset/black-backgroud/设置.svg")
 	property url iconModeSequence: Qt.resolvedUrl("ui-asset/black-backgroud/music_playerModes/顺序.svg")
 	property url iconModeRandom: Qt.resolvedUrl("ui-asset/black-backgroud/music_playerModes/随机.svg")
@@ -372,7 +374,134 @@ ApplicationWindow {
 								border.color: "#cbd5e1"
 								border.width: 1
 							}
-							ListView {
+                            Popup {
+                                id: songActionPopup
+                                parent: appWindow.overlay
+                                modal: false
+                                closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+                                background: Rectangle {
+                                    color: "#ffffff"
+                                    radius: 12
+                                    border.color: "#cbd5e1"
+                                    border.width: 1
+                                }
+                                property real targetX: 0
+                                property real targetY: 0
+                                property bool logActive: false
+                                property bool anchorLeft: true
+                                property bool anchorBottom: true
+                                property string anchorCorner: "topLeft"
+                                property bool anchorContent: true
+                                property real clickX: 0
+                                property real clickY: 0
+                                property int edgeMargin: 8
+                                x: Math.max(edgeMargin, Math.min(anchorLeft ? targetX : (targetX - width), appWindow.width - width - edgeMargin))
+                                y: Math.max(edgeMargin, Math.min(anchorBottom ? (targetY - height) : targetY, appWindow.height - height - edgeMargin))
+                                property real phi: 1.618
+                                property int baseW: Math.round(Math.min(360, Math.max(240, listView.width * 0.40)))
+                                property int minW: 240
+                                property int maxW: 340
+                                property int headerSpacing: 10
+                                width: Math.round(Math.min(maxW,
+                                                          Math.max(minW,
+                                                                   innerPadding * 2 + coverSize + headerSpacing + Math.max(titleText.implicitWidth, artistsText.implicitWidth))))
+                                property int innerPadding: 10
+                                property int contentSpacing: 10
+                                property int dividerHeight: 1
+                                property int titleSize: 15
+                                property int artistSize: 12
+                                property real lineHeightScale: 1.35
+                                property int textSpacing: 6
+                                property int coverSize: Math.round(titleSize * lineHeightScale + artistSize * lineHeightScale + textSpacing)
+                                height: Math.round(innerPadding * 2 + coverSize + dividerHeight + contentSpacing * 3 + actionHeight * 2)
+                                property int actionIconSize: Math.round(Math.max(18, Math.min(24, Math.round(width * 0.07))))
+                                property int actionWidth: Math.round(width - 28)
+                                property int actionHeight: Math.round(actionIconSize + 12)
+                                property int songIndex: -1
+                                property string songTitle: ""
+                                property string songArtists: ""
+                                property url songCover: ""
+                                contentItem: ColumnLayout {
+                                    anchors.margins: songActionPopup.innerPadding
+                                    spacing: songActionPopup.contentSpacing
+                                    RowLayout {
+                                        spacing: songActionPopup.headerSpacing
+                                        Image { source: songActionPopup.songCover; width: songActionPopup.coverSize; height: songActionPopup.coverSize; fillMode: Image.PreserveAspectCrop; sourceSize.width: songActionPopup.coverSize; sourceSize.height: songActionPopup.coverSize; visible: status === Image.Ready }
+                                        ColumnLayout {
+                                            spacing: 6
+                                            Text { id: titleText; text: songActionPopup.songTitle; color: "#111827"; font.pixelSize: 15; font.weight: Font.DemiBold; elide: Text.ElideRight; Layout.preferredWidth: Math.round(songActionPopup.width - songActionPopup.coverSize - songActionPopup.headerSpacing) }
+                                            Text { id: artistsText; text: songActionPopup.songArtists; color: "#6b7280"; font.pixelSize: 12; elide: Text.ElideRight; Layout.preferredWidth: Math.round(songActionPopup.width - songActionPopup.coverSize - songActionPopup.headerSpacing) }
+                                        }
+                                    }
+                                    Rectangle { height: 1; color: "#e5e7eb"; Layout.fillWidth: true }
+                                    RowLayout {
+                                        id: actionPlayRow
+                                        spacing: 8
+                                        Layout.alignment: Qt.AlignLeft
+                                        Layout.fillWidth: true
+                                        MouseArea {
+                                            id: playActionMouse
+                                            acceptedButtons: Qt.LeftButton
+                                            onClicked: { if (musicController) musicController.queuePlayFromSearchIndex(songActionPopup.songIndex); songActionPopup.close() }
+                                            cursorShape: Qt.PointingHandCursor
+                                            anchors.fill: undefined
+                                            width: songActionPopup.actionWidth; height: songActionPopup.actionHeight
+                                            Rectangle { anchors.fill: parent; radius: 6; color: parent.pressed ? "#f3f4f6" : "transparent" }
+                                            RowLayout { id: playContentRow; anchors.fill: parent; anchors.margins: 6; spacing: 10; Image { source: iconPlay; width: songActionPopup.actionIconSize; height: songActionPopup.actionIconSize; fillMode: Image.PreserveAspectFit; sourceSize.width: songActionPopup.actionIconSize; sourceSize.height: songActionPopup.actionIconSize } Text { text: qsTr("播放"); color: "#111827"; font.pixelSize: 13 } }
+                                        }
+                                    }
+                                    RowLayout {
+                                        id: actionNextRow
+                                        spacing: 8
+                                        Layout.alignment: Qt.AlignLeft
+                                        Layout.fillWidth: true
+                                        MouseArea {
+                                            id: nextActionMouse
+                                            acceptedButtons: Qt.LeftButton
+                                            onClicked: { if (musicController) musicController.queueAddFromSearchIndex(songActionPopup.songIndex, true); songActionPopup.close() }
+                                            cursorShape: Qt.PointingHandCursor
+                                            width: songActionPopup.actionWidth; height: songActionPopup.actionHeight
+                                            Rectangle { anchors.fill: parent; radius: 6; color: parent.pressed ? "#f3f4f6" : "transparent" }
+                                            RowLayout { id: nextContentRow; anchors.fill: parent; anchors.margins: 6; spacing: 10; Image { source: iconNext; width: songActionPopup.actionIconSize; height: songActionPopup.actionIconSize; fillMode: Image.PreserveAspectFit; sourceSize.width: songActionPopup.actionIconSize; sourceSize.height: songActionPopup.actionIconSize } Text { text: qsTr("下一首播放"); color: "#111827"; font.pixelSize: 13 } }
+                                        }
+                                    }
+                                }
+                                onOpened: if (logActive) {
+                                    var TLx = x; var TLy = y
+                                    var dxTL = TLx - clickX; var dyTL = TLy - clickY
+                                    console.log("[Popup] Opened at (", x, ",", y, ") Size=(", width, ",", height, ") Click=(", clickX, ",", clickY, ") DeltaTL=(", dxTL, ",", dyTL, ")")
+                                }
+                                onClosed: logActive = false
+                                function openFor(index, title, artists, coverUrl, originItem, mouse) {
+                                    songIndex = index; songTitle = title; songArtists = artists; songCover = coverUrl
+                                    
+                                    // Use popup's parent for coordinate mapping to ensure correct positioning
+                                    var popupParent = songActionPopup.parent
+                                    var p = originItem.mapToItem(popupParent, mouse.x, mouse.y)
+                                    clickX = p.x
+                                    clickY = p.y
+                                    
+                                    if (anchorCorner === "auto") {
+                                        anchorLeft = (clickX + width + edgeMargin) <= appWindow.width
+                                        anchorBottom = (clickY + height + edgeMargin) <= appWindow.height
+                                    } else {
+                                        anchorLeft = (anchorCorner === "topLeft" || anchorCorner === "bottomLeft")
+                                        anchorBottom = (anchorCorner === "bottomLeft" || anchorCorner === "bottomRight")
+                                    }
+                                    var tX = clickX
+                                    var tY = clickY
+                                    if (anchorContent) {
+                                        tX = clickX + (anchorLeft ? -innerPadding : innerPadding)
+                                        tY = clickY + (anchorBottom ? innerPadding : -innerPadding)
+                                    }
+                                    targetX = tX
+                                    targetY = tY
+                                    console.log("[Popup] click=(", clickX, ",", clickY, ") anchorDecide left=", anchorLeft, " bottom=", anchorBottom)
+                                    logActive = true
+                                    open()
+                                }
+                            }
+                            ListView {
 								id: listView
 								anchors.fill: parent
 								anchors.margins: 8
@@ -382,10 +511,10 @@ ApplicationWindow {
 									width: listView.width
 									height: 56
 									radius: 10
-									property bool current: index === currentSongIndex
+                                    property bool current: false
 									property bool hovered: false
-									color: current ? "#dcfce7" : (hovered ? "#f1f5f9" : "#ffffff")
-									border.color: current ? "#22c55e" : "transparent"
+                                    color: hovered ? "#f1f5f9" : "#ffffff"
+                                    border.color: "transparent"
 
 									RowLayout {
 										anchors.fill: parent
@@ -426,15 +555,27 @@ ApplicationWindow {
 										}
 									}
 
-									MouseArea {
+                                    MouseArea {
+                                        id: searchItemMouse
 										anchors.fill: parent
 										hoverEnabled: true
+                                        acceptedButtons: Qt.LeftButton | Qt.RightButton
 										onEntered: hovered = true
 										onExited: hovered = false
-										onClicked: {
-										if (musicController) musicController.playIndex(index)
-											currentPlaylistIndex = -1
-										}
+                                        onClicked: function(mouse){
+                                            if (mouse.button === Qt.LeftButton) {
+                                                console.log("[SearchItem] left-click index=", index)
+                                                if (musicController) musicController.queuePlayFromSearchIndex(index)
+                                                currentPlaylistIndex = -1
+                                            }
+                                        }
+                                        onPressed: function(mouse){
+                                            if (mouse.button === Qt.RightButton) {
+                                                var cover = coverUrl
+                                                console.log("[SearchItem] right-click index=", index, "local=(", mouse.x, ",", mouse.y, ") scene=", (mouse.scenePosition ? (mouse.scenePosition.x + "," + mouse.scenePosition.y) : "n/a"))
+                                                songActionPopup.openFor(index, title, artists, cover, searchItemMouse, mouse)
+                                            }
+                                        }
 									}
 								}
 							}
@@ -621,12 +762,11 @@ ApplicationWindow {
 									hoverEnabled: true
 									onEntered: hovered = true
 									onExited: hovered = false
-									onClicked: {
-										if (!musicController) return
-										musicController.importPlaylistToQueue()
-										musicController.playIndex(index)
-										currentPlaylistIndex = index
-									}
+                                    onClicked: {
+                                        if (!musicController) return
+                                        musicController.playPlaylistTrack(index)
+                                        currentPlaylistIndex = index
+                                    }
 								}
 							}
 						}
@@ -1019,11 +1159,11 @@ ApplicationWindow {
 								border.color: "#e5e7eb"
 								border.width: 1
 							}
-							ListView {
+                            ListView {
 								id: queueListView
 								anchors.fill: parent
 								anchors.margins: 6
-								model: musicController ? musicController.songsModel : null
+                                model: musicController ? musicController.queueModel : null
 								clip: true
 								delegate: Rectangle {
 									width: queueListView.width
@@ -1033,6 +1173,16 @@ ApplicationWindow {
 									property bool hovered: false
 									color: current ? "#dcfce7" : (hovered ? "#f1f5f9" : "#ffffff")
 									border.color: current ? "#22c55e" : "transparent"
+									MouseArea {
+										anchors.fill: parent
+										hoverEnabled: true
+										onEntered: hovered = true
+										onExited: hovered = false
+                                        onClicked: {
+                                            if (musicController) musicController.playIndex(index)
+                                            queueDrawer.close()
+                                        }
+									}
 									RowLayout {
 										anchors.fill: parent
 										anchors.margins: 10
@@ -1059,16 +1209,26 @@ ApplicationWindow {
 											Layout.preferredWidth: 58
 											horizontalAlignment: Text.AlignRight
 										}
-									}
-									MouseArea {
-										anchors.fill: parent
-										hoverEnabled: true
-										onEntered: hovered = true
-										onExited: hovered = false
-										onClicked: {
-											if (musicController) musicController.playIndex(index)
-											queueDrawer.close()
-										}
+                                        Item {
+                                            Layout.preferredWidth: 24
+                                            Layout.preferredHeight: 24
+                                            Image {
+                                                source: iconDelete
+                                                anchors.fill: parent
+                                                anchors.margins: 4
+                                                fillMode: Image.PreserveAspectFit
+                                                opacity: deleteMouse.containsMouse ? 1.0 : 0.6
+                                            }
+                                            MouseArea {
+                                                id: deleteMouse
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: {
+                                                    if (musicController) musicController.queueRemoveAt(index)
+                                                }
+                                            }
+                                        }
 									}
 								}
 							}

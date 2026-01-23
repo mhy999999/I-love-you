@@ -39,6 +39,7 @@ class MusicController : public QObject
 	Q_PROPERTY(qint64 currentLyricNextMs READ currentLyricNextMs NOTIFY currentLyricIndexChanged)
 	Q_PROPERTY(QUrl coverSource READ coverSource NOTIFY coverSourceChanged)
 	Q_PROPERTY(SongListModel *playlistModel READ playlistModel CONSTANT)
+	Q_PROPERTY(SongListModel *queueModel READ queueModel CONSTANT)
 	Q_PROPERTY(bool playlistLoading READ playlistLoading NOTIFY playlistLoadingChanged)
 	Q_PROPERTY(QString playlistName READ playlistName NOTIFY playlistNameChanged)
 	Q_PROPERTY(bool playlistHasMore READ playlistHasMore NOTIFY playlistHasMoreChanged)
@@ -78,6 +79,7 @@ public:
 	qint64 currentLyricNextMs() const;
 	QUrl coverSource() const;
 	SongListModel *playlistModel();
+	SongListModel *queueModel() const;
 	bool playlistLoading() const;
 	QString playlistName() const;
 	bool playlistHasMore() const;
@@ -97,6 +99,11 @@ public:
 	Q_INVOKABLE void loadPlaylist(const QString &playlistId);
 	Q_INVOKABLE void loadMorePlaylist();
 	Q_INVOKABLE void importPlaylistToQueue();
+	Q_INVOKABLE void playPlaylistTrack(int index);
+	Q_INVOKABLE void queuePlayFromSearchIndex(int index);
+	Q_INVOKABLE void queueAddFromSearchIndex(int index, bool next);
+	Q_INVOKABLE void queueRemoveAt(int index);
+	Q_INVOKABLE void queueClear();
 
 signals:
 	void loadingChanged();
@@ -125,6 +132,7 @@ private:
 	SongListModel m_songsModel;
 	LyricListModel m_lyricModel;
 	SongListModel m_playlistModel;
+	SongListModel m_queueModel;
 	QMediaPlayer m_player;
 	DiskCache imageCache;
 	DiskCache lyricCache;
@@ -185,6 +193,10 @@ private:
 	void playNextInternal(bool fromUser);
 	void playPrevInternal(bool fromUser);
 	bool m_playlistHasMore = false;
+
+	// 队列持久化
+	void saveQueueToSettings();
+	void loadQueueFromSettings();
 };
 
 }
