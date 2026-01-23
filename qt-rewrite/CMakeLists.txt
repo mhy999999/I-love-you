@@ -36,6 +36,7 @@ qt_add_qml_module(appqtrewrite
     URI qtrewrite
     QML_FILES
         Main.qml
+        LyricOverlay.qml
     RESOURCES
         "ui-asset/black-backgroud/上一首.svg"
         "ui-asset/black-backgroud/下一首.svg"
@@ -44,6 +45,12 @@ qt_add_qml_module(appqtrewrite
         "ui-asset/black-backgroud/暂停.svg"
         "ui-asset/black-backgroud/静音.svg"
         "ui-asset/black-backgroud/音量.svg"
+        "ui-asset/black-backgroud/声音.svg"
+        "ui-asset/black-backgroud/声音静音.svg"
+        "ui-asset/black-backgroud/歌词.svg"
+        "ui-asset/black-backgroud/click_back/歌词_clickBack.svg"
+        "ui-asset/black-backgroud/列表2.svg"
+        "ui-asset/black-backgroud/设置.svg"
     NO_CACHEGEN
 )
 

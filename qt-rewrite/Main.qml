@@ -20,6 +20,12 @@ ApplicationWindow {
 	property url iconNext: Qt.resolvedUrl("ui-asset/black-backgroud/下一首.svg")
 	property url iconPlay: Qt.resolvedUrl("ui-asset/black-backgroud/播放.svg")
 	property url iconPause: Qt.resolvedUrl("ui-asset/black-backgroud/暂停.svg")
+	property url iconLyric: Qt.resolvedUrl("ui-asset/black-backgroud/歌词.svg")
+	property url iconLyricActive: Qt.resolvedUrl("ui-asset/black-backgroud/click_back/歌词_clickBack.svg")
+	property url iconVolume: Qt.resolvedUrl("ui-asset/black-backgroud/声音.svg")
+	property url iconVolumeMute: Qt.resolvedUrl("ui-asset/black-backgroud/声音静音.svg")
+	property url iconList: Qt.resolvedUrl("ui-asset/black-backgroud/列表2.svg")
+	property url iconSettings: Qt.resolvedUrl("ui-asset/black-backgroud/设置.svg")
 
 	function formatMs(ms) {
 		var v = Math.max(0, Math.floor(ms || 0))
@@ -478,20 +484,28 @@ ApplicationWindow {
 	footer: ToolBar {
 		id: footerBar
 		contentHeight: 96
+		property int controlIconSize: Math.min(44, Math.max(28, Math.round(contentHeight * 0.45)))
+		property int controlButtonSize: controlIconSize + 12
+		property int previousVolume: 50
 		background: Rectangle {
 			color: "#ffffff"
 			radius: 0
 			border.color: "#cbd5e1"
 			border.width: 1
 		}
-		contentItem: RowLayout {
+		contentItem: GridLayout {
 			anchors.fill: parent
 			anchors.margins: 12
-			spacing: 16
+			columns: 3
+			columnSpacing: 16
+			rowSpacing: 0
 
 			RowLayout {
+				Layout.column: 0
 				spacing: 10
 				Layout.preferredWidth: 260
+				Layout.maximumWidth: 260
+				Layout.minimumWidth: 260
 
 				Rectangle {
 					width: 48
@@ -528,20 +542,28 @@ ApplicationWindow {
 			}
 
 			ColumnLayout {
+				Layout.column: 1
 				Layout.fillWidth: true
 				spacing: 6
 
 				RowLayout {
-					Layout.alignment: Qt.AlignHCenter
+					Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
 					spacing: 14
 
 					ToolButton {
 						id: prevButton
 						text: ""
 						font.pixelSize: 16
-						icon.source: iconPrev
-						icon.width: 22
-						icon.height: 22
+						implicitWidth: 46
+						implicitHeight: 46
+						HoverHandler { cursorShape: Qt.PointingHandCursor }
+						contentItem: Image {
+							source: iconPrev
+							width: 22
+							height: 22
+							fillMode: Image.PreserveAspectFit
+							anchors.centerIn: parent
+						}
 						onClicked: {
 							if (!musicController) return
 							if (currentSongIndex > 0) {
@@ -559,6 +581,7 @@ ApplicationWindow {
 						implicitHeight: 46
 						font.pixelSize: 18
 						highlighted: true
+						HoverHandler { cursorShape: Qt.PointingHandCursor }
 						icon.source: musicController && musicController.playing ? iconPause : iconPlay
 						icon.width: 22
 						icon.height: 22
@@ -569,9 +592,16 @@ ApplicationWindow {
 						id: nextButton
 						text: ""
 						font.pixelSize: 16
-						icon.source: iconNext
-						icon.width: 22
-						icon.height: 22
+						implicitWidth: 46
+						implicitHeight: 46
+						HoverHandler { cursorShape: Qt.PointingHandCursor }
+						contentItem: Image {
+							source: iconNext
+							width: 22
+							height: 22
+							fillMode: Image.PreserveAspectFit
+							anchors.centerIn: parent
+						}
 						onClicked: {
 							if (!musicController) return
 							if (currentSongIndex >= 0 && listView.count > 0 && currentSongIndex < listView.count - 1) {
@@ -628,76 +658,240 @@ ApplicationWindow {
 			}
 
 			RowLayout {
-				spacing: 8
+				Layout.column: 2
+				spacing: Math.round(footerBar.controlIconSize * 0.3)
 				Layout.preferredWidth: 260
+				Layout.maximumWidth: 260
+				Layout.minimumWidth: 260
 				Layout.alignment: Qt.AlignRight
 
-				Button {
-					id: playlistButton
-					text: qsTr("列表")
-					implicitWidth: 52
-					implicitHeight: 30
-					hoverEnabled: true
-					background: Rectangle {
-						radius: 6
-						color: playlistButton.down ? "#e5e7eb" : (playlistButton.hovered ? "#f3f4f6" : "#ffffff")
-						border.color: "#cbd5e1"
-						border.width: 1
+				Item {
+					id: playlistBox
+					width: footerBar.controlIconSize
+					height: footerBar.controlIconSize
+					Image {
+						source: iconList
+						x: 0; y: 0
+						width: parent.width
+						height: parent.height
+						fillMode: Image.PreserveAspectFit
 					}
-					contentItem: Text {
-						text: qsTr("列表")
-						color: "#111827"
-						font.pixelSize: 12
-						horizontalAlignment: Text.AlignHCenter
-						verticalAlignment: Text.AlignVCenter
-					}
-				}
-
-				Button {
-					id: lyricButton
-					text: qsTr("歌词")
-					implicitWidth: 52
-					implicitHeight: 30
-					hoverEnabled: true
-					background: Rectangle {
-						radius: 6
-						color: lyricButton.down ? "#e5e7eb" : (lyricButton.hovered ? "#f3f4f6" : "#ffffff")
-						border.color: "#cbd5e1"
-						border.width: 1
-					}
-					contentItem: Text {
-						text: qsTr("歌词")
-						color: "#111827"
-						font.pixelSize: 12
-						horizontalAlignment: Text.AlignHCenter
-						verticalAlignment: Text.AlignVCenter
+					MouseArea {
+						x: 0; y: 0
+						width: parent.width
+						height: parent.height
+						hoverEnabled: true
+						cursorShape: Qt.PointingHandCursor
+						onClicked: {}
 					}
 				}
 
-				Slider {
-					id: volumeSlider
-					from: 0
-					to: 100
-					value: musicController ? musicController.volume : 50
-					Layout.fillWidth: true
-					onMoved: if (musicController) musicController.volume = value
-					onPressedChanged: if (!pressed && musicController) musicController.volume = value
-					background: Rectangle {
-						implicitHeight: 4
-						radius: 2
-						color: "#e5e7eb"
-						Rectangle {
-							width: volumeSlider.visualPosition * parent.width
-							height: parent.height
-							radius: 2
-							color: "#9ca3af"
-						}
+				Item {
+					id: lyricBox
+					property bool active: false
+					width: footerBar.controlIconSize
+					height: footerBar.controlIconSize
+					Image {
+						source: lyricBox.active ? iconLyricActive : iconLyric
+						x: 0; y: 0
+						width: parent.width
+						height: parent.height
+						fillMode: Image.PreserveAspectFit
+					}
+					MouseArea {
+						x: 0; y: 0
+						width: parent.width
+						height: parent.height
+						hoverEnabled: true
+						cursorShape: Qt.PointingHandCursor
+						onClicked: lyricBox.active = !lyricBox.active
+					}
+				}
+
+				Item {
+					id: volumeBox
+					property bool muted: false
+					property bool hovered: false
+					width: footerBar.controlIconSize
+					height: footerBar.controlIconSize
+					Image {
+						source: volumeBox.muted ? iconVolumeMute : iconVolume
+						x: 0; y: 0
+						width: parent.width
+						height: parent.height
+						fillMode: Image.PreserveAspectFit
 					}
 					Binding {
-						target: volumeSlider
-						property: "value"
-						value: musicController ? musicController.volume : 50
-						when: !volumeSlider.pressed && musicController
+						target: volumeBox
+						property: "muted"
+						value: musicController ? musicController.volume === 0 : false
+					}
+					HoverHandler {
+						id: volumeIconHover
+						cursorShape: Qt.PointingHandCursor
+						onHoveredChanged: {
+							if (hovered) {
+								volumePopup.open()
+								volumePopupCloseDelay.stop()
+							} else {
+								volumePopupCloseDelay.restart()
+							}
+						}
+					}
+					MouseArea {
+						x: 0; y: 0
+						width: parent.width
+						height: parent.height
+						cursorShape: Qt.PointingHandCursor
+						onClicked: {
+							if (!musicController) return
+							if (volumeBox.muted) {
+								musicController.volume = footerBar.previousVolume
+								volumeBox.muted = false
+							} else {
+								footerBar.previousVolume = musicController.volume
+								musicController.volume = 0
+								volumeBox.muted = true
+							}
+						}
+					}
+				}
+
+				Item {
+					id: settingsBox
+					width: footerBar.controlIconSize
+					height: footerBar.controlIconSize
+					Image {
+						source: iconSettings
+						x: 0; y: 0
+						width: parent.width
+						height: parent.height
+						fillMode: Image.PreserveAspectFit
+					}
+					MouseArea {
+						x: 0; y: 0
+						width: parent.width
+						height: parent.height
+						hoverEnabled: true
+						cursorShape: Qt.PointingHandCursor
+						onClicked: {}
+					}
+				}
+				Popup {
+					id: volumePopup
+					parent: footerBar.contentItem
+					width: 76
+					height: 190
+					modal: false
+					focus: true
+					closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+					Timer {
+						id: volumePopupCloseDelay
+						interval: 120
+						repeat: false
+						onTriggered: {
+							if (!volumeIconHover.hovered && !popupHover.hovered) {
+								volumePopup.close()
+							}
+						}
+					}
+					function updatePos() {
+						var pCenter = volumeBox.mapToItem(parent, volumeBox.width / 2, 0)
+						var pTopLeft = volumeBox.mapToItem(parent, 0, 0)
+						x = pCenter.x - width / 2
+						y = pTopLeft.y - height
+					}
+					onOpened: updatePos()
+					onVisibleChanged: if (visible) updatePos()
+					background: Rectangle {
+						radius: 12
+						color: "#ffffff"
+						border.color: "#cbd5e1"
+						border.width: 1
+					}
+					contentItem: ColumnLayout {
+						anchors.fill: parent
+						anchors.margins: 10
+						spacing: 8
+						HoverHandler {
+							id: popupHover
+							cursorShape: Qt.PointingHandCursor
+							onHoveredChanged: {
+								if (hovered) {
+									volumePopupCloseDelay.stop()
+								} else {
+									volumePopupCloseDelay.restart()
+								}
+							}
+						}
+						Item {
+							Layout.alignment: Qt.AlignHCenter
+							implicitWidth: 36
+							implicitHeight: 130
+							Rectangle {
+								id: volTrack
+								width: 8
+								height: parent.height
+								radius: 4
+								color: "#e5e7eb"
+								x: Math.round((parent.width - width) / 2)
+								Rectangle {
+									x: 0
+									anchors.bottom: parent.bottom
+									width: parent.width
+									height: volumePopupSlider.visualPosition * parent.height
+									radius: 4
+									color: "#ef4444"
+								}
+							}
+							Rectangle {
+								id: volHandle
+								width: 18
+								height: 18
+								radius: 9
+								color: "#ffffff"
+								border.color: "#cbd5e1"
+								x: Math.round(volTrack.x + (volTrack.width - width) / 2)
+								y: (1 - volumePopupSlider.visualPosition) * (volTrack.height - height)
+								MouseArea {
+									x: 0
+									y: 0
+									width: parent.width
+									height: parent.height
+									cursorShape: Qt.PointingHandCursor
+									drag.target: parent
+									drag.axis: Drag.YAxis
+									drag.minimumY: 0
+									drag.maximumY: volTrack.height - volHandle.height
+									onPositionChanged: {
+										var pos = 1 - (volHandle.y / (volTrack.height - volHandle.height))
+										var val = Math.round(pos * 100)
+										if (musicController) musicController.volume = val
+									}
+								}
+							}
+							Slider {
+								id: volumePopupSlider
+								visible: false
+								from: 0
+								to: 100
+								value: musicController ? musicController.volume : 50
+								onMoved: if (musicController) musicController.volume = value
+								onPressedChanged: if (!pressed && musicController) musicController.volume = value
+							}
+						}
+						Text {
+							Layout.alignment: Qt.AlignHCenter
+							text: (musicController ? musicController.volume : 50) + "%"
+							color: "#111827"
+							font.pixelSize: 12
+						}
+						Binding {
+							target: volumePopupSlider
+							property: "value"
+							value: musicController ? musicController.volume : 50
+							when: !volumePopupSlider.pressed && musicController
+						}
 					}
 				}
 			}
