@@ -30,7 +30,9 @@ class MusicController : public QObject
 	Q_PROPERTY(int volume READ volume WRITE setVolume NOTIFY volumeChanged)
 	Q_PROPERTY(qint64 positionMs READ positionMs NOTIFY positionMsChanged)
 	Q_PROPERTY(qint64 durationMs READ durationMs NOTIFY durationMsChanged)
+	Q_PROPERTY(int currentSongIndex READ currentSongIndex NOTIFY currentSongIndexChanged)
 	Q_PROPERTY(int currentLyricIndex READ currentLyricIndex NOTIFY currentLyricIndexChanged)
+	Q_PROPERTY(qint64 lyricOffsetMs READ lyricOffsetMs WRITE setLyricOffsetMs NOTIFY lyricOffsetMsChanged)
 	// 便于 QML 计算当前歌词渐进高亮的时间范围
 	Q_PROPERTY(qint64 currentLyricStartMs READ currentLyricStartMs NOTIFY currentLyricIndexChanged)
 	Q_PROPERTY(qint64 currentLyricNextMs READ currentLyricNextMs NOTIFY currentLyricIndexChanged)
@@ -55,7 +57,10 @@ public:
 	void setVolume(int v);
 	qint64 positionMs() const;
 	qint64 durationMs() const;
+	int currentSongIndex() const;
 	int currentLyricIndex() const;
+	qint64 lyricOffsetMs() const;
+	void setLyricOffsetMs(qint64 v);
 	qint64 currentLyricStartMs() const;
 	qint64 currentLyricNextMs() const;
 	QUrl coverSource() const;
@@ -68,10 +73,13 @@ public:
 
 	Q_INVOKABLE void search(const QString &keyword);
 	Q_INVOKABLE void playIndex(int index);
+	Q_INVOKABLE void playPrev();
+	Q_INVOKABLE void playNext();
 	Q_INVOKABLE void seek(qint64 positionMs);
 	Q_INVOKABLE void pause();
 	Q_INVOKABLE void resume();
 	Q_INVOKABLE void stop();
+	Q_INVOKABLE void adjustLyricOffsetMs(qint64 deltaMs);
 	Q_INVOKABLE void loadPlaylist(const QString &playlistId);
 	Q_INVOKABLE void loadMorePlaylist();
 	Q_INVOKABLE void importPlaylistToQueue();
@@ -83,7 +91,9 @@ signals:
 	void volumeChanged();
 	void positionMsChanged();
 	void durationMsChanged();
+	void currentSongIndexChanged();
 	void currentLyricIndexChanged();
+	void lyricOffsetMsChanged();
 	void coverSourceChanged();
 	void playlistLoadingChanged();
 	void playlistNameChanged();
@@ -123,7 +133,9 @@ private:
 	quint64 m_playlistTracksRequestId = 0;
 	qint64 m_positionMs = 0;
 	qint64 m_durationMs = 0;
+	int m_currentSongIndex = -1;
 	int m_currentLyricIndex = -1;
+	qint64 m_lyricOffsetMs = 0;
 	QUrl m_coverSource;
 	bool m_playlistLoading = false;
 	QString m_playlistId;
@@ -139,6 +151,7 @@ private:
 	void setPlaying(bool v);
 	void setPositionMs(qint64 v);
 	void setDurationMs(qint64 v);
+	void setCurrentSongIndex(int v);
 	void setCurrentLyricIndex(int v);
 	void setCoverSource(const QUrl &url);
 	void setPlaylistLoading(bool v);

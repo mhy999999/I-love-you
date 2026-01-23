@@ -13,19 +13,77 @@ Window {
     visible: false
     visibility: Window.Windowed
     color: "transparent"
-    flags: Qt.FramelessWindowHint | (settings.stayOnTop ? Qt.WindowStaysOnTopHint : 0) | (locked ? Qt.WindowTransparentForInput : 0)
+    flags: Qt.FramelessWindowHint | (settings.stayOnTop ? Qt.WindowStaysOnTopHint : 0)
     transientParent: null
     minimumWidth: 600
     minimumHeight: 200
 
     title: "Lyric Overlay"
 
-    property bool locked: settings.locked
+    property bool dimmed: false
+    property bool showControls: false
+    property bool controlsPinned: false
     property int fontSize: settings.fontSize
+    property int controlIconSize: 22
     property color baseTextColor: theme === "dark" ? "#e6e6e6" : "#383838"
     property color secondaryTextColor: theme === "dark" ? "#ffffffea" : "#282828ae"
     property color highlightColor: settings.highlightColor
     property string theme: settings.theme
+    property url iconPrev: Qt.resolvedUrl("ui-asset/LyricsFloatingWindow/上一首.svg")
+    property url iconNext: Qt.resolvedUrl("ui-asset/LyricsFloatingWindow/下一首.svg")
+    property url iconPlay: Qt.resolvedUrl("ui-asset/LyricsFloatingWindow/播放.svg")
+    property url iconPause: Qt.resolvedUrl("ui-asset/LyricsFloatingWindow/暂停.svg")
+    property url iconLyricOffsetPlus: Qt.resolvedUrl("ui-asset/LyricsFloatingWindow/歌词调整 0.5秒.svg")
+    property url iconLyricOffsetMinus: Qt.resolvedUrl("ui-asset/LyricsFloatingWindow/歌词调整-0.5秒.svg")
+    property url iconLock: Qt.resolvedUrl("ui-asset/LyricsFloatingWindow/锁定.svg")
+    property url iconSettings: Qt.resolvedUrl("ui-asset/LyricsFloatingWindow/设置.svg")
+    property url iconClose: Qt.resolvedUrl("ui-asset/LyricsFloatingWindow/关闭.svg")
+
+    component IconButton: Item {
+        property url source
+        property int size: overlay.controlIconSize
+        property bool enabled: true
+        signal clicked()
+
+        width: size
+        height: size
+
+        Image {
+            anchors.fill: parent
+            source: parent.source
+            fillMode: Image.PreserveAspectFit
+            opacity: parent.enabled ? 1.0 : 0.4
+        }
+        HoverHandler { cursorShape: parent.enabled ? Qt.PointingHandCursor : Qt.ArrowCursor }
+        TapHandler {
+            enabled: parent.enabled
+            onTapped: parent.clicked()
+        }
+    }
+    Timer {
+        id: dimTimer
+        interval: 2500
+        repeat: false
+        running: false
+        onTriggered: {
+            dimmed = false
+            showControls = false
+            controlsPinned = false
+        }
+    }
+    onDimmedChanged: {
+        if (dimmed) {
+            if (typeof overlayHover !== "undefined" && overlayHover.hovered) {
+                dimTimer.stop()
+            } else {
+                dimTimer.restart()
+            }
+        } else {
+            dimTimer.stop()
+            showControls = false
+            controlsPinned = false
+        }
+    }
 
     Settings {
         id: settings
@@ -34,7 +92,6 @@ Window {
         property int winHeight: 200
         property int winX: 240
         property int winY: 240
-        property bool locked: false
         property int fontSize: 24
         property color highlightColor: "#1db954"
         property string theme: "dark"
@@ -43,12 +100,21 @@ Window {
 
     Rectangle {
         anchors.fill: parent
-        color: "transparent"
+        color: dimmed ? "#808080" : "transparent"
         radius: 14
+        HoverHandler {
+            id: overlayHover
+            onHoveredChanged: {
+                if (hovered) {
+                    dimTimer.stop()
+                } else if (dimmed) {
+                    dimTimer.restart()
+                }
+            }
+        }
     }
 
-    // 顶部控制栏（锁定时隐藏）
-    Row {
+    RowLayout {
         id: controlBar
         spacing: 12
         anchors {
@@ -59,86 +125,52 @@ Window {
             rightMargin: 12
             topMargin: 8
         }
-        visible: !locked
-
+        visible: showControls
+        IconButton {
+            source: iconLyricOffsetMinus
+            enabled: !!musicController
+            onClicked: if (musicController) musicController.adjustLyricOffsetMs(-500)
+        }
+        IconButton {
+            source: iconLyricOffsetPlus
+            enabled: !!musicController
+            onClicked: if (musicController) musicController.adjustLyricOffsetMs(500)
+        }
+        Item { Layout.fillWidth: true }
         Row {
-            spacing: 8
-            Button {
-                text: "-"
-                onClicked: {
-                    if (fontSize > 12) {
-                        fontSize -= 2
-                        settings.fontSize = fontSize
-                    }
-                }
+            spacing: 14
+            IconButton {
+                source: iconPrev
+                enabled: !!musicController
+                onClicked: if (musicController) musicController.playPrev()
             }
-            Button {
-                text: "+"
-                onClicked: {
-                    if (fontSize < 48) {
-                        fontSize += 2
-                        settings.fontSize = fontSize
-                    }
-                }
+            IconButton {
+                source: musicController && musicController.playing ? iconPause : iconPlay
+                enabled: !!musicController
+                onClicked: if (musicController) musicController.playing ? musicController.pause() : musicController.resume()
             }
-            Text {
-                text: musicController ? musicController.currentSongTitle : ""
-                color: baseTextColor
-                font.pixelSize: 14
-                elide: Text.ElideRight
+            IconButton {
+                source: iconNext
+                enabled: !!musicController
+                onClicked: if (musicController) musicController.playNext()
             }
         }
-
-        Item { Layout.fillWidth: true; width: 1; height: 1 }
-
-        Row {
-            spacing: 8
-            Button {
-                text: theme === "dark" ? "暗" : "亮"
-                onClicked: {
-                    theme = (theme === "dark") ? "light" : "dark"
-                    settings.theme = theme
-                }
-            }
-            Button {
-                text: settings.stayOnTop ? "置顶" : "取消置顶"
-                onClicked: settings.stayOnTop = !settings.stayOnTop
-            }
-            Button {
-                text: locked ? "解锁" : "锁定"
-                onClicked: {
-                    locked = !locked
-                    settings.locked = locked
-                }
-            }
-            Button {
-                text: "关闭"
-                onClicked: overlay.visible = false
-            }
+        Item { Layout.fillWidth: true }
+        IconButton {
+            source: iconLock
+            onClicked: {}
+        }
+        IconButton {
+            source: iconSettings
+            onClicked: {}
+        }
+        IconButton {
+            source: iconClose
+            onClicked: overlay.close()
         }
     }
 
-    // 播放控制（居中，锁定时隐藏）
-    Row {
-        spacing: 12
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.top: controlBar.bottom
-        anchors.topMargin: 6
-        visible: !locked
-
-        Button {
-            text: "上一首"
-            onClicked: if (musicController) musicController.playIndex(Math.max(0, (musicController.currentLyricIndex - 1)))
-        }
-        Button {
-            text: musicController && musicController.playing ? "暂停" : "播放"
-            onClicked: if (musicController) musicController.playing ? musicController.pause() : musicController.resume()
-        }
-        Button {
-            text: "下一首"
-            onClicked: if (musicController) musicController.playIndex((musicController.currentLyricIndex + 1))
-        }
-    }
+    
 
     // 歌词显示
     ListView {
@@ -147,11 +179,11 @@ Window {
             left: parent.left
             right: parent.right
             bottom: parent.bottom
-            top: locked ? parent.top : controlBar.bottom
+            top: controlBar.bottom
             leftMargin: 12
             rightMargin: 12
             bottomMargin: 10
-            topMargin: locked ? 10 : 6
+            topMargin: 6
         }
         model: musicController ? musicController.lyricModel : null
         clip: true
@@ -170,7 +202,7 @@ Window {
                 // next line's time isn't directly readable here; fallback to controller property
                 return musicController.currentLyricNextMs
             }
-            property real posMs: musicController ? musicController.positionMs : 0
+            property real posMs: musicController ? (musicController.positionMs + musicController.lyricOffsetMs) : 0
             property real progress: {
                 if (!current) return 0
                 const dur = Math.max(1, nextMs - startMs)
@@ -212,22 +244,31 @@ Window {
         }
     }
 
-    // 拖动移动（非锁定）
-    MouseArea {
-        anchors.fill: parent
-        enabled: !locked
-        property point lastPos: Qt.point(0, 0)
-        onPressed: lastPos = Qt.point(mouse.x, mouse.y)
-        onPositionChanged: {
-            const dx = mouse.x - lastPos.x
-            const dy = mouse.y - lastPos.y
-            overlay.x += dx
-            overlay.y += dy
-            lastPos = Qt.point(mouse.x, mouse.y)
+    Item {
+        anchors {
+            left: parent.left
+            right: parent.right
+            bottom: parent.bottom
+            top: controlBar.bottom
         }
-        onReleased: {
-            settings.winX = overlay.x
-            settings.winY = overlay.y
+        DragHandler {
+            id: windowDrag
+            onActiveChanged: {
+                if (active) {
+                    overlay.startSystemMove()
+                    dimmed = true
+                    showControls = true
+                    if (overlayHover.hovered) dimTimer.stop(); else dimTimer.restart()
+                }
+            }
+        }
+        TapHandler {
+            onTapped: {
+                dimmed = true
+                showControls = true
+                controlsPinned = true
+                if (overlayHover.hovered) dimTimer.stop(); else dimTimer.restart()
+            }
         }
     }
     Item {
@@ -235,7 +276,7 @@ Window {
         anchors.bottom: parent.bottom
         width: 16
         height: 16
-        visible: !locked
+        visible: true
         MouseArea {
             anchors.fill: parent
             cursorShape: Qt.SizeFDiagCursor
@@ -266,4 +307,6 @@ Window {
     }
     onWidthChanged: settings.winWidth = width
     onHeightChanged: settings.winHeight = height
+    onXChanged: settings.winX = x
+    onYChanged: settings.winY = y
 }

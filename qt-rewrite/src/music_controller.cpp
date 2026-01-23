@@ -444,9 +444,28 @@ qint64 MusicController::durationMs() const
 	return m_durationMs;
 }
 
+int MusicController::currentSongIndex() const
+{
+	return m_currentSongIndex;
+}
+
 int MusicController::currentLyricIndex() const
 {
 	return m_currentLyricIndex;
+}
+
+qint64 MusicController::lyricOffsetMs() const
+{
+	return m_lyricOffsetMs;
+}
+
+void MusicController::setLyricOffsetMs(qint64 v)
+{
+	if (m_lyricOffsetMs == v)
+		return;
+	m_lyricOffsetMs = v;
+	emit lyricOffsetMsChanged();
+	updateCurrentLyricIndexByPosition(m_player.position());
 }
 
 qint64 MusicController::currentLyricStartMs() const
@@ -540,6 +559,14 @@ void MusicController::setDurationMs(qint64 v)
 	emit durationMsChanged();
 }
 
+void MusicController::setCurrentSongIndex(int v)
+{
+	if (m_currentSongIndex == v)
+		return;
+	m_currentSongIndex = v;
+	emit currentSongIndexChanged();
+}
+
 void MusicController::setCurrentLyricIndex(int v)
 {
 	if (m_currentLyricIndex == v)
@@ -599,6 +626,9 @@ void MusicController::setCurrentSongArtists(const QString &artists)
 
 void MusicController::updateCurrentLyricIndexByPosition(qint64 posMs)
 {
+	qint64 effectivePosMs = posMs + m_lyricOffsetMs;
+	if (effectivePosMs < 0)
+		effectivePosMs = 0;
 	const QList<LyricLine> &lines = m_lyricModel.lyric().lines;
 	if (lines.isEmpty())
 	{
@@ -626,7 +656,7 @@ void MusicController::updateCurrentLyricIndexByPosition(qint64 posMs)
 	{
 		int mid = (lo + hi) / 2;
 		qint64 t = lines.at(mid).timeMs;
-		if (t <= posMs)
+		if (t <= effectivePosMs)
 		{
 			best = mid;
 			lo = mid + 1;
@@ -856,6 +886,7 @@ void MusicController::playIndex(int index)
 {
 	if (index < 0 || index >= m_songsModel.rowCount())
 		return;
+	setCurrentSongIndex(index);
 	// 记录本次播放序号，避免旧 playUrl 回调覆盖当前播放
 	quint64 requestId = ++m_playRequestId;
 	if (playUrlToken)
@@ -925,6 +956,28 @@ void MusicController::playIndex(int index)
 	}, QStringList() << providerId);
 }
 
+void MusicController::playPrev()
+{
+	if (m_currentSongIndex <= 0)
+		return;
+	playIndex(m_currentSongIndex - 1);
+}
+
+void MusicController::playNext()
+{
+	int count = m_songsModel.rowCount();
+	if (count <= 0)
+		return;
+	if (m_currentSongIndex < 0)
+	{
+		playIndex(0);
+		return;
+	}
+	if (m_currentSongIndex + 1 >= count)
+		return;
+	playIndex(m_currentSongIndex + 1);
+}
+
 void MusicController::loadPlaylist(const QString &playlistId)
 {
 	QString id = playlistId.trimmed();
@@ -956,6 +1009,11 @@ void MusicController::loadPlaylist(const QString &playlistId)
 		requestCover(result.value.coverUrl);
 		loadMorePlaylist();
 	});
+}
+
+void MusicController::adjustLyricOffsetMs(qint64 deltaMs)
+{
+	setLyricOffsetMs(m_lyricOffsetMs + deltaMs);
 }
 
 void MusicController::loadMorePlaylist()

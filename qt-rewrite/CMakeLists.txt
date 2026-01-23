@@ -51,6 +51,15 @@ qt_add_qml_module(appqtrewrite
         "ui-asset/black-backgroud/click_back/歌词_clickBack.svg"
         "ui-asset/black-backgroud/列表2.svg"
         "ui-asset/black-backgroud/设置.svg"
+        "ui-asset/LyricsFloatingWindow/播放.svg"
+        "ui-asset/LyricsFloatingWindow/暂停.svg"
+        "ui-asset/LyricsFloatingWindow/上一首.svg"
+        "ui-asset/LyricsFloatingWindow/下一首.svg"
+        "ui-asset/LyricsFloatingWindow/歌词调整 0.5秒.svg"
+        "ui-asset/LyricsFloatingWindow/歌词调整-0.5秒.svg"
+        "ui-asset/LyricsFloatingWindow/锁定.svg"
+        "ui-asset/LyricsFloatingWindow/设置.svg"
+        "ui-asset/LyricsFloatingWindow/关闭.svg"
     NO_CACHEGEN
 )
 
@@ -74,7 +83,9 @@ target_link_libraries(appqtrewrite
 	PRIVATE Qt6::Quick Qt6::Network Qt6::Multimedia Qt6::Svg
 )
 
-target_compile_options(appqtrewrite PRIVATE /wd4828)
+if (MSVC)
+	target_compile_options(appqtrewrite PRIVATE /wd4828)
+endif()
 
 include(GNUInstallDirs)
 install(TARGETS appqtrewrite
