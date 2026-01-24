@@ -4,6 +4,7 @@ import QtQuick.Controls
 import QtQuick.Controls.FluentWinUI3
 import QtQuick.Layouts
 import QtMultimedia
+import QtQuick.Effects
 
 // 应用主窗口
 ApplicationWindow {
@@ -138,12 +139,37 @@ ApplicationWindow {
 					height: 40
 					radius: 12
 					color: "#111827"
+					
+					property bool hasAvatar: musicController && musicController.loggedIn && musicController.avatarUrl != ""
+					
 					Text {
 						anchors.centerIn: parent
 						text: "M"
 						color: "#ffffff"
 						font.pixelSize: 18
 						font.weight: Font.DemiBold
+						visible: !parent.hasAvatar
+					}
+					
+					Image {
+						anchors.fill: parent
+						source: parent.hasAvatar ? musicController.avatarUrl : ""
+						visible: parent.hasAvatar
+						fillMode: Image.PreserveAspectCrop
+						
+						layer.enabled: true
+						layer.effect: Rectangle {
+							width: 40
+							height: 40
+							radius: 12
+							color: "black"
+						}
+					}
+					
+					MouseArea {
+						anchors.fill: parent
+						cursorShape: Qt.PointingHandCursor
+						onClicked: loginPopup.open()
 					}
 				}
 
@@ -442,7 +468,16 @@ ApplicationWindow {
                                         MouseArea {
                                             id: playActionMouse
                                             acceptedButtons: Qt.LeftButton
-                                            onClicked: { if (musicController) musicController.queuePlayFromSearchIndex(songActionPopup.songIndex); songActionPopup.close() }
+                                            onClicked: {
+                                                if (musicController) {
+                                                    if (songActionPopup.sourceType === "queue") {
+                                                        musicController.playIndex(songActionPopup.songIndex)
+                                                    } else {
+                                                        musicController.queuePlayFromSearchIndex(songActionPopup.songIndex)
+                                                    }
+                                                }
+                                                songActionPopup.close()
+                                            }
                                             cursorShape: Qt.PointingHandCursor
                                             anchors.fill: undefined
                                             width: songActionPopup.actionWidth; height: songActionPopup.actionHeight
@@ -458,22 +493,52 @@ ApplicationWindow {
                                         MouseArea {
                                             id: nextActionMouse
                                             acceptedButtons: Qt.LeftButton
-                                            onClicked: { if (musicController) musicController.queueAddFromSearchIndex(songActionPopup.songIndex, true); songActionPopup.close() }
+                                            onClicked: {
+                                                if (musicController) {
+                                                    if (songActionPopup.sourceType === "queue") {
+                                                        musicController.queueRemoveAt(songActionPopup.songIndex)
+                                                    } else {
+                                                        musicController.queueAddFromSearchIndex(songActionPopup.songIndex, true)
+                                                    }
+                                                }
+                                                songActionPopup.close()
+                                            }
                                             cursorShape: Qt.PointingHandCursor
                                             width: songActionPopup.actionWidth; height: songActionPopup.actionHeight
                                             Rectangle { anchors.fill: parent; radius: 6; color: parent.pressed ? "#f3f4f6" : "transparent" }
-                                            RowLayout { id: nextContentRow; anchors.fill: parent; anchors.margins: 6; spacing: 10; Image { source: iconNext; width: songActionPopup.actionIconSize; height: songActionPopup.actionIconSize; fillMode: Image.PreserveAspectFit; sourceSize.width: songActionPopup.actionIconSize; sourceSize.height: songActionPopup.actionIconSize } Text { text: qsTr("下一首播放"); color: "#111827"; font.pixelSize: 13 } }
+                                            RowLayout {
+                                                id: nextContentRow
+                                                anchors.fill: parent
+                                                anchors.margins: 6
+                                                spacing: 10
+                                                Image {
+                                                    source: songActionPopup.sourceType === "queue" ? iconDelete : iconNext
+                                                    width: songActionPopup.actionIconSize
+                                                    height: songActionPopup.actionIconSize
+                                                    fillMode: Image.PreserveAspectFit
+                                                    sourceSize.width: songActionPopup.actionIconSize
+                                                    sourceSize.height: songActionPopup.actionIconSize
+                                                }
+                                                Text {
+                                                    text: songActionPopup.sourceType === "queue" ? qsTr("从队列删除") : qsTr("下一首播放")
+                                                    color: "#111827"
+                                                    font.pixelSize: 13
+                                                }
+                                            }
                                         }
                                     }
                                 }
+                                property string sourceType: "search"
+
                                 onOpened: if (logActive) {
                                     var TLx = x; var TLy = y
                                     var dxTL = TLx - clickX; var dyTL = TLy - clickY
                                     console.log("[Popup] Opened at (", x, ",", y, ") Size=(", width, ",", height, ") Click=(", clickX, ",", clickY, ") DeltaTL=(", dxTL, ",", dyTL, ")")
                                 }
                                 onClosed: logActive = false
-                                function openFor(index, title, artists, coverUrl, originItem, mouse) {
+                                function openFor(index, title, artists, coverUrl, originItem, mouse, type) {
                                     songIndex = index; songTitle = title; songArtists = artists; songCover = coverUrl
+                                    sourceType = type || "search"
                                     
                                     // Use popup's parent for coordinate mapping to ensure correct positioning
                                     var popupParent = songActionPopup.parent
@@ -1176,11 +1241,20 @@ ApplicationWindow {
 									MouseArea {
 										anchors.fill: parent
 										hoverEnabled: true
+                                        acceptedButtons: Qt.LeftButton | Qt.RightButton
 										onEntered: hovered = true
 										onExited: hovered = false
-                                        onClicked: {
-                                            if (musicController) musicController.playIndex(index)
-                                            queueDrawer.close()
+                                        onClicked: function(mouse) {
+                                            if (mouse.button === Qt.LeftButton) {
+                                                if (musicController) musicController.playIndex(index)
+                                                queueDrawer.close()
+                                            }
+                                        }
+                                        onPressed: function(mouse) {
+                                            if (mouse.button === Qt.RightButton) {
+                                                var cover = (typeof coverUrl !== "undefined") ? coverUrl : ""
+                                                songActionPopup.openFor(index, title, artists, cover, parent, mouse, "queue")
+                                            }
                                         }
 									}
 									RowLayout {
@@ -1210,25 +1284,36 @@ ApplicationWindow {
 											horizontalAlignment: Text.AlignRight
 										}
                                         Item {
-                                            Layout.preferredWidth: 24
-                                            Layout.preferredHeight: 24
-                                            Image {
-                                                source: iconDelete
-                                                anchors.fill: parent
-                                                anchors.margins: 4
-                                                fillMode: Image.PreserveAspectFit
-                                                opacity: deleteMouse.containsMouse ? 1.0 : 0.6
-                                            }
-                                            MouseArea {
-                                                id: deleteMouse
-                                                anchors.fill: parent
-                                                hoverEnabled: true
-                                                cursorShape: Qt.PointingHandCursor
-                                                onClicked: {
-                                                    if (musicController) musicController.queueRemoveAt(index)
-                                                }
-                                            }
-                                        }
+                                             Layout.preferredWidth: 32
+                                             Layout.preferredHeight: 32
+                                             
+                                             Image {
+                                                 id: deleteIconSrc
+                                                 source: iconDelete
+                                                 anchors.fill: parent
+                                                 anchors.margins: 6
+                                                 fillMode: Image.PreserveAspectFit
+                                                 visible: false
+                                             }
+
+                                             MultiEffect {
+                                                 source: deleteIconSrc
+                                                 anchors.fill: deleteIconSrc
+                                                 colorization: 1.0
+                                                 colorizationColor: deleteMouse.containsMouse ? "#ef4444" : "#3D3D3D"
+                                                 Behavior on colorizationColor { ColorAnimation { duration: 150 } }
+                                             }
+
+                                             MouseArea {
+                                                 id: deleteMouse
+                                                 anchors.fill: parent
+                                                 hoverEnabled: true
+                                                 cursorShape: Qt.PointingHandCursor
+                                                 onClicked: {
+                                                     if (musicController) musicController.queueRemoveAt(index)
+                                                 }
+                                             }
+                                         }
 									}
 								}
 							}
@@ -1355,6 +1440,10 @@ ApplicationWindow {
 			}
 		}
 	}
+	LoginPopup {
+		id: loginPopup
+	}
+
 	LyricOverlay {
 		id: lyricOverlay
 		visible: lyricBox.active

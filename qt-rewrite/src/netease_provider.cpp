@@ -14,6 +14,7 @@
 #include <QSettings>
 #include <QTimer>
 #include <QUrlQuery>
+#include <QDateTime>
 
 #include "logger.h"
 #include "json_utils.h"
@@ -329,12 +330,28 @@ bool NeteaseProvider::supportsPlaylistTracks() const
 	return true;
 }
 
+void NeteaseProvider::setCookie(const QString &cookie)
+{
+	m_cookie = cookie;
+}
+
+QString NeteaseProvider::cookie() const
+{
+	return m_cookie;
+}
+
 QUrl NeteaseProvider::buildUrl(const QString &path, const QList<QPair<QString, QString>> &query) const
 {
 	QUrl url = apiBase.resolved(QUrl(path));
 	QUrlQuery q;
 	for (const auto &pair : query)
 		q.addQueryItem(pair.first, pair.second);
+	
+	if (!m_cookie.isEmpty())
+		q.addQueryItem(QStringLiteral("cookie"), m_cookie);
+	
+	q.addQueryItem(QStringLiteral("timestamp"), QString::number(QDateTime::currentMSecsSinceEpoch()));
+	
 	url.setQuery(q);
 	return url;
 }
@@ -1717,6 +1734,369 @@ Result<PlaylistTracksPage> NeteaseProvider::parsePlaylistTracks(const QString &p
 	if (page.total <= 0)
 		page.total = page.offset + page.songs.size();
 	return Result<PlaylistTracksPage>::success(page);
+}
+
+QSharedPointer<RequestToken> NeteaseProvider::loginQrKey(const LoginQrKeyCallback &callback)
+{
+	HttpRequestOptions opts;
+	opts.url = buildUrl(QStringLiteral("/login/qr/key"), {});
+	return client->sendWithRetry(opts, 2, 500, [this, callback](Result<HttpResponse> result) {
+		if (!result.ok)
+		{
+			callback(Result<LoginQrKey>::failure(result.error));
+			return;
+		}
+		callback(parseLoginQrKey(result.value.body));
+	});
+}
+
+QSharedPointer<RequestToken> NeteaseProvider::loginQrCreate(const QString &key, const LoginQrCreateCallback &callback)
+{
+	HttpRequestOptions opts;
+	opts.url = buildUrl(QStringLiteral("/login/qr/create"), {{QStringLiteral("key"), key}, {QStringLiteral("qrimg"), QStringLiteral("true")}, {QStringLiteral("realIP"), QStringLiteral("116.25.146.177")}});
+	return client->sendWithRetry(opts, 2, 500, [this, callback](Result<HttpResponse> result) {
+		if (!result.ok)
+		{
+			callback(Result<LoginQrCreate>::failure(result.error));
+			return;
+		}
+		callback(parseLoginQrCreate(result.value.body));
+	});
+}
+
+QSharedPointer<RequestToken> NeteaseProvider::loginQrCheck(const QString &key, const LoginQrCheckCallback &callback)
+{
+	HttpRequestOptions opts;
+	opts.url = buildUrl(QStringLiteral("/login/qr/check"), {{QStringLiteral("key"), key}, {QStringLiteral("noCookie"), QStringLiteral("true")}});
+	return client->sendWithRetry(opts, 1, 0, [this, callback](Result<HttpResponse> result) {
+		if (!result.ok)
+		{
+			callback(Result<LoginQrCheck>::failure(result.error));
+			return;
+		}
+		callback(parseLoginQrCheck(result.value.body));
+	});
+}
+
+QSharedPointer<RequestToken> NeteaseProvider::loginCellphone(const QString &phone, const QString &password, const QString &countryCode, const LoginCallback &callback)
+{
+	HttpRequestOptions opts;
+    opts.method = "POST";
+    // 使用用户抓包的 PC User-Agent，确保与 os=pc 参数匹配，模拟真实 PC 浏览器请求
+    const QString capturedUA = QStringLiteral("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 Edg/144.0.0.0");
+    
+    // 恢复 realIP 参数 (用户明确指出可解决风控/异常)
+    // 强制通过 cookie 传递 os=pc，确保本地 API 能够正确识别设备类型
+    opts.url = buildUrl(QStringLiteral("/login/cellphone"), {
+        {QStringLiteral("realIP"), QStringLiteral("116.25.146.177")},
+        {QStringLiteral("ua"), capturedUA},
+        {QStringLiteral("os"), QStringLiteral("pc")},
+        {QStringLiteral("cookie"), QStringLiteral("os=pc")}
+    });
+    
+    opts.headers.insert("Content-Type", "application/x-www-form-urlencoded");
+    opts.headers.insert("User-Agent", capturedUA.toUtf8());
+
+    QStringList parts;
+    parts << "phone=" + QUrl::toPercentEncoding(phone);
+    QByteArray passwordMd5 = QCryptographicHash::hash(password.toUtf8(), QCryptographicHash::Md5).toHex();
+    parts << "md5_password=" + QUrl::toPercentEncoding(QString::fromLatin1(passwordMd5));
+    QString cc = countryCode.isEmpty() ? QStringLiteral("86") : countryCode;
+    parts << "countrycode=" + QUrl::toPercentEncoding(cc);
+    parts << "type=1"; // 必须保留 type=1 以触发正确的登录逻辑
+
+    opts.body = parts.join('&').toUtf8();
+	return client->sendWithRetry(opts, 1, 0, [this, callback](Result<HttpResponse> result) {
+		if (!result.ok)
+		{
+			callback(Result<UserProfile>::failure(result.error));
+			return;
+		}
+		callback(parseLoginResult(result.value.body));
+	});
+}
+
+QSharedPointer<RequestToken> NeteaseProvider::loginEmail(const QString &email, const QString &password, const LoginCallback &callback)
+{
+	HttpRequestOptions opts;
+	opts.method = "POST";
+    const QString capturedUA = QStringLiteral("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 Edg/144.0.0.0");
+
+	opts.url = buildUrl(QStringLiteral("/login"), {
+        {QStringLiteral("realIP"), QStringLiteral("116.25.146.177")},
+        {QStringLiteral("ua"), capturedUA},
+        {QStringLiteral("os"), QStringLiteral("pc")},
+        {QStringLiteral("cookie"), QStringLiteral("os=pc")}
+    });
+	opts.headers.insert("Content-Type", "application/x-www-form-urlencoded");
+    opts.headers.insert("User-Agent", capturedUA.toUtf8());
+
+	QStringList parts;
+    parts << "email=" + QUrl::toPercentEncoding(email);
+	QByteArray passwordMd5 = QCryptographicHash::hash(password.toUtf8(), QCryptographicHash::Md5).toHex();
+    parts << "md5_password=" + QUrl::toPercentEncoding(QString::fromLatin1(passwordMd5));
+    parts << "type=1";
+
+	opts.body = parts.join('&').toUtf8();
+	return client->sendWithRetry(opts, 1, 0, [this, callback](Result<HttpResponse> result) {
+		if (!result.ok)
+		{
+			callback(Result<UserProfile>::failure(result.error));
+			return;
+		}
+		callback(parseLoginResult(result.value.body));
+	});
+}
+
+QSharedPointer<RequestToken> NeteaseProvider::loginRefresh(const LoginCallback &callback)
+{
+	HttpRequestOptions opts;
+	opts.url = buildUrl(QStringLiteral("/login/refresh"), {});
+	return client->sendWithRetry(opts, 1, 0, [this, callback](Result<HttpResponse> result) {
+		if (!result.ok)
+		{
+			callback(Result<UserProfile>::failure(result.error));
+			return;
+		}
+		callback(parseLoginResult(result.value.body));
+	});
+}
+
+QSharedPointer<RequestToken> NeteaseProvider::logout(const std::function<void(Result<bool>)> &callback)
+{
+	HttpRequestOptions opts;
+	opts.url = buildUrl(QStringLiteral("/logout"), {{QStringLiteral("realIP"), QStringLiteral("116.25.146.177")}});
+	return client->sendWithRetry(opts, 1, 0, [this, callback](Result<HttpResponse> result) {
+		if (!result.ok)
+		{
+			callback(Result<bool>::failure(result.error));
+			return;
+		}
+		m_cookie.clear();
+		callback(Result<bool>::success(true));
+	});
+}
+
+QSharedPointer<RequestToken> NeteaseProvider::loginStatus(const LoginCallback &callback)
+{
+	HttpRequestOptions opts;
+	opts.url = buildUrl(QStringLiteral("/login/status"), {{QStringLiteral("realIP"), QStringLiteral("116.25.146.177")}});
+	return client->sendWithRetry(opts, 2, 500, [this, callback](Result<HttpResponse> result) {
+		if (!result.ok)
+		{
+			callback(Result<UserProfile>::failure(result.error));
+			return;
+		}
+		callback(parseLoginResult(result.value.body));
+	});
+}
+
+Result<LoginQrKey> NeteaseProvider::parseLoginQrKey(const QByteArray &body) const
+{
+	QJsonParseError err{};
+	QJsonDocument doc = QJsonDocument::fromJson(body, &err);
+	if (err.error != QJsonParseError::NoError || !doc.isObject())
+		return Result<LoginQrKey>::failure({ErrorCategory::Parser, -1, QStringLiteral("Parse QR key failed")});
+	
+	QJsonObject root = doc.object();
+	int code = root.value(QStringLiteral("code")).toInt();
+	if (code != 200)
+		 return Result<LoginQrKey>::failure({ErrorCategory::Auth, code, QStringLiteral("Get QR key failed")});
+
+	LoginQrKey data;
+	data.unikey = root.value(QStringLiteral("data")).toObject().value(QStringLiteral("unikey")).toString();
+	return Result<LoginQrKey>::success(data);
+}
+
+Result<LoginQrCreate> NeteaseProvider::parseLoginQrCreate(const QByteArray &body) const
+{
+	QJsonParseError err{};
+	QJsonDocument doc = QJsonDocument::fromJson(body, &err);
+	if (err.error != QJsonParseError::NoError || !doc.isObject())
+		 return Result<LoginQrCreate>::failure({ErrorCategory::Parser, -1, QStringLiteral("Parse QR create failed")});
+
+	QJsonObject root = doc.object();
+	 if (root.value(QStringLiteral("code")).toInt() != 200)
+		 return Result<LoginQrCreate>::failure({ErrorCategory::Auth, root.value(QStringLiteral("code")).toInt(), QStringLiteral("Create QR failed")});
+
+	LoginQrCreate data;
+	QJsonObject d = root.value(QStringLiteral("data")).toObject();
+	data.qrImg = d.value(QStringLiteral("qrimg")).toString();
+	data.qrUrl = d.value(QStringLiteral("qrurl")).toString();
+	return Result<LoginQrCreate>::success(data);
+}
+
+Result<LoginQrCheck> NeteaseProvider::parseLoginQrCheck(const QByteArray &body) const
+{
+	QJsonParseError err{};
+	QJsonDocument doc = QJsonDocument::fromJson(body, &err);
+	if (err.error != QJsonParseError::NoError || !doc.isObject())
+		 return Result<LoginQrCheck>::failure({ErrorCategory::Parser, -1, QStringLiteral("Parse QR check failed")});
+
+	QJsonObject root = doc.object();
+	LoginQrCheck data;
+	data.code = root.value(QStringLiteral("code")).toInt();
+	data.message = root.value(QStringLiteral("message")).toString();
+	data.cookie = root.value(QStringLiteral("cookie")).toString();
+	return Result<LoginQrCheck>::success(data);
+}
+
+Result<UserProfile> NeteaseProvider::parseLoginResult(const QByteArray &body) const
+{
+	QJsonParseError err{};
+	QJsonDocument doc = QJsonDocument::fromJson(body, &err);
+	if (err.error != QJsonParseError::NoError || !doc.isObject())
+		 return Result<UserProfile>::failure({ErrorCategory::Parser, -1, QStringLiteral("Parse login result failed")});
+
+	QJsonObject root = doc.object();
+	QJsonObject profile;
+	if (root.contains(QStringLiteral("profile")))
+		profile = root.value(QStringLiteral("profile")).toObject();
+	else if (root.contains(QStringLiteral("data")) && root.value(QStringLiteral("data")).toObject().contains(QStringLiteral("profile")))
+		profile = root.value(QStringLiteral("data")).toObject().value(QStringLiteral("profile")).toObject();
+	
+	if (profile.isEmpty())
+	{
+		QString msg = root.value(QStringLiteral("message")).toString();
+		if (msg.isEmpty())
+			msg = QStringLiteral("Login failed or no profile");
+		return Result<UserProfile>::failure({ErrorCategory::Auth, root.value(QStringLiteral("code")).toInt(), msg});
+	}
+
+	UserProfile user;
+	user.userId = profile.value(QStringLiteral("userId")).toVariant().toString();
+	user.nickname = profile.value(QStringLiteral("nickname")).toString();
+	user.avatarUrl = QUrl(profile.value(QStringLiteral("avatarUrl")).toString());
+	user.signature = profile.value(QStringLiteral("signature")).toString();
+	user.vipType = profile.value(QStringLiteral("vipType")).toInt();
+	
+	if (root.contains(QStringLiteral("cookie")))
+		user.cookie = root.value(QStringLiteral("cookie")).toString();
+		
+	return Result<UserProfile>::success(user);
+}
+
+QSharedPointer<RequestToken> NeteaseProvider::loginCellphoneCaptcha(const QString &phone, const QString &captcha, const QString &countryCode, const LoginCallback &callback)
+{
+	HttpRequestOptions opts;
+	opts.method = "POST";
+    // 使用用户抓包的 PC User-Agent，确保与 os=pc 参数匹配，模拟真实 PC 浏览器请求
+    const QString capturedUA = QStringLiteral("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 Edg/144.0.0.0");
+    
+    // 恢复 realIP 参数 (用户明确指出可解决风控/异常)
+    // 强制通过 cookie 传递 os=pc，确保本地 API 能够正确识别设备类型
+    opts.url = buildUrl(QStringLiteral("/login/cellphone"), {
+        {QStringLiteral("realIP"), QStringLiteral("116.25.146.177")},
+        {QStringLiteral("ua"), capturedUA},
+        {QStringLiteral("os"), QStringLiteral("pc")},
+        {QStringLiteral("cookie"), QStringLiteral("os=pc")}
+    });
+
+	opts.headers.insert("Content-Type", "application/x-www-form-urlencoded");
+    opts.headers.insert("User-Agent", capturedUA.toUtf8());
+
+	QStringList parts;
+    parts << "phone=" + QUrl::toPercentEncoding(phone);
+    parts << "captcha=" + QUrl::toPercentEncoding(captcha);
+    QString cc = countryCode.isEmpty() ? QStringLiteral("86") : countryCode;
+    parts << "countrycode=" + QUrl::toPercentEncoding(cc);
+    parts << "type=1"; // 必须保留 type=1 以触发正确的登录逻辑
+
+    opts.body = parts.join('&').toUtf8();
+	return client->sendWithRetry(opts, 1, 0, [this, callback](Result<HttpResponse> result) {
+		if (!result.ok)
+		{
+			callback(Result<UserProfile>::failure(result.error));
+			return;
+		}
+		callback(parseLoginResult(result.value.body));
+	});
+}
+
+QSharedPointer<RequestToken> NeteaseProvider::captchaSent(const QString &phone, const QString &countryCode, const std::function<void(Result<bool>)> &callback)
+{
+	HttpRequestOptions opts;
+	opts.method = "POST";
+	opts.url = buildUrl(QStringLiteral("/captcha/sent"), {{QStringLiteral("realIP"), QStringLiteral("116.25.146.177")}});
+	opts.headers.insert("Content-Type", "application/json");
+
+	QJsonObject json;
+	json.insert(QStringLiteral("phone"), phone);
+	if (!countryCode.isEmpty())
+		json.insert(QStringLiteral("ctcode"), countryCode);
+
+	opts.body = QJsonDocument(json).toJson(QJsonDocument::Compact);
+	return client->sendWithRetry(opts, 1, 0, [this, callback](Result<HttpResponse> result) {
+		if (!result.ok)
+		{
+			callback(Result<bool>::failure(result.error));
+			return;
+		}
+		
+		QJsonParseError err{};
+		QJsonDocument doc = QJsonDocument::fromJson(result.value.body, &err);
+		if (err.error != QJsonParseError::NoError || !doc.isObject())
+		{
+			callback(Result<bool>::failure({ErrorCategory::Parser, -1, QStringLiteral("Parse captcha sent failed")}));
+			return;
+		}
+		
+		QJsonObject root = doc.object();
+		int code = root.value(QStringLiteral("code")).toInt();
+		if (code != 200)
+		{
+			callback(Result<bool>::failure({ErrorCategory::Auth, code, root.value(QStringLiteral("message")).toString()}));
+			return;
+		}
+		
+		callback(Result<bool>::success(true));
+	});
+}
+
+QSharedPointer<RequestToken> NeteaseProvider::captchaVerify(const QString &phone, const QString &captcha, const QString &countryCode, const std::function<void(Result<bool>)> &callback)
+{
+	HttpRequestOptions opts;
+	opts.method = "POST";
+	opts.url = buildUrl(QStringLiteral("/captcha/verify"), {});
+	opts.headers.insert("Content-Type", "application/json");
+
+	QJsonObject json;
+	json.insert(QStringLiteral("phone"), phone);
+	json.insert(QStringLiteral("captcha"), captcha);
+	if (!countryCode.isEmpty())
+		json.insert(QStringLiteral("ctcode"), countryCode);
+
+	opts.body = QJsonDocument(json).toJson(QJsonDocument::Compact);
+	return client->sendWithRetry(opts, 1, 0, [this, callback](Result<HttpResponse> result) {
+		if (!result.ok)
+		{
+			callback(Result<bool>::failure(result.error));
+			return;
+		}
+		
+		QJsonParseError err{};
+		QJsonDocument doc = QJsonDocument::fromJson(result.value.body, &err);
+		if (err.error != QJsonParseError::NoError || !doc.isObject())
+		{
+			callback(Result<bool>::failure({ErrorCategory::Parser, -1, QStringLiteral("Parse captcha verify failed")}));
+			return;
+		}
+		
+		QJsonObject root = doc.object();
+		int code = root.value(QStringLiteral("code")).toInt();
+		if (code != 200)
+		{
+			callback(Result<bool>::failure({ErrorCategory::Auth, code, root.value(QStringLiteral("message")).toString()}));
+			return;
+		}
+		
+		// data: true/false
+		bool success = root.value(QStringLiteral("data")).toBool();
+		if (success)
+			callback(Result<bool>::success(true));
+		else
+			callback(Result<bool>::failure({ErrorCategory::Auth, -1, QStringLiteral("Verification failed")}));
+	});
 }
 
 }

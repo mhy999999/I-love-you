@@ -1,4 +1,4 @@
-﻿// 核心领域模型与通用结果类型定义
+// 核心领域模型与通用结果类型定义
 #pragma once
 
 #include <QList>
@@ -73,6 +73,34 @@ struct PlaylistTracksPage
 	int total = 0;
 	int offset = 0;
 	int limit = 0;
+};
+
+struct UserProfile
+{
+	QString userId;
+	QString nickname;
+	QUrl avatarUrl;
+	QString signature;
+	int vipType = 0;
+	QString cookie;
+};
+
+struct LoginQrKey
+{
+	QString unikey;
+};
+
+struct LoginQrCreate
+{
+	QString qrImg;
+	QString qrUrl;
+};
+
+struct LoginQrCheck
+{
+	int code; // 800=expire, 801=waiting, 802=confirming, 803=success
+	QString message;
+	QString cookie;
 };
 
 // 错误分类，用于统一错误上报

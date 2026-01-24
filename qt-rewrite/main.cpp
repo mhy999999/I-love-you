@@ -3,6 +3,7 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
+#include <QQuickStyle>
 
 #include "core_types.h"
 #include "logger.h"
@@ -20,6 +21,7 @@ int main(int argc, char *argv[])
 	App::Logger::info("Application starting");
 
 	// 创建 GUI 应用对象
+	QQuickStyle::setStyle("Basic");
 	QGuiApplication app(argc, argv);
 
 	// 创建 QML 引擎并加载主 QML 模块

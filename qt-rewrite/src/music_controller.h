@@ -45,6 +45,12 @@ class MusicController : public QObject
 	Q_PROPERTY(bool playlistHasMore READ playlistHasMore NOTIFY playlistHasMoreChanged)
 	Q_PROPERTY(QString currentSongTitle READ currentSongTitle NOTIFY currentSongTitleChanged)
 	Q_PROPERTY(QString currentSongArtists READ currentSongArtists NOTIFY currentSongArtistsChanged)
+	Q_PROPERTY(bool loggedIn READ loggedIn NOTIFY loggedInChanged)
+	Q_PROPERTY(QString userId READ userId NOTIFY userProfileChanged)
+	Q_PROPERTY(QString nickname READ nickname NOTIFY userProfileChanged)
+	Q_PROPERTY(QUrl avatarUrl READ avatarUrl NOTIFY userProfileChanged)
+	Q_PROPERTY(QString signature READ signature NOTIFY userProfileChanged)
+	Q_PROPERTY(int vipType READ vipType NOTIFY userProfileChanged)
 
 public:
 	enum PlaybackMode
@@ -85,6 +91,12 @@ public:
 	bool playlistHasMore() const;
 	QString currentSongTitle() const;
 	QString currentSongArtists() const;
+	bool loggedIn() const;
+	QString userId() const;
+	QString nickname() const;
+	QUrl avatarUrl() const;
+	QString signature() const;
+	int vipType() const;
 
 	Q_INVOKABLE void search(const QString &keyword);
 	Q_INVOKABLE void playIndex(int index);
@@ -104,6 +116,18 @@ public:
 	Q_INVOKABLE void queueAddFromSearchIndex(int index, bool next);
 	Q_INVOKABLE void queueRemoveAt(int index);
 	Q_INVOKABLE void queueClear();
+	Q_INVOKABLE void loginQrKey();
+	Q_INVOKABLE void loginQrCreate(const QString &key);
+	Q_INVOKABLE void loginQrCheck(const QString &key);
+	Q_INVOKABLE void loginCellphone(const QString &phone, const QString &password, const QString &countryCode = QString());
+	Q_INVOKABLE void loginCellphoneCaptcha(const QString &phone, const QString &captcha, const QString &countryCode = QString());
+	Q_INVOKABLE void captchaSent(const QString &phone, const QString &countryCode = QString());
+	Q_INVOKABLE void captchaVerify(const QString &phone, const QString &captcha, const QString &countryCode = QString());
+	Q_INVOKABLE void loginEmail(const QString &email, const QString &password);
+	Q_INVOKABLE void loginRefresh();
+	Q_INVOKABLE void logout();
+	Q_INVOKABLE void checkLoginStatus();
+	Q_INVOKABLE void playlistRemoveAt(int index);
 
 signals:
 	void loadingChanged();
@@ -123,6 +147,15 @@ signals:
 	void currentSongTitleChanged();
 	void currentSongArtistsChanged();
 	void playbackModeChanged();
+	void loggedInChanged();
+	void userProfileChanged();
+	void loginQrKeyReceived(const QString &key);
+	void loginQrCreateReceived(const QString &qrImg, const QString &qrUrl);
+	void loginQrCheckReceived(int code, const QString &message, const QString &cookie);
+	void loginSuccess(const QString &userId);
+	void loginFailed(const QString &message);
+	void captchaSentReceived(bool success, const QString &message);
+	void captchaVerifyReceived(bool success, const QString &message);
 
 private:
 	HttpClient httpClient;
@@ -143,6 +176,7 @@ private:
 	QSharedPointer<RequestToken> songDetailToken;
 	QSharedPointer<RequestToken> playlistDetailToken;
 	QSharedPointer<RequestToken> playlistTracksToken;
+	QSharedPointer<RequestToken> loginToken;
 	QProcess *musicApiProcess = nullptr;
 	bool m_loading = false;
 	QUrl m_currentUrl;
@@ -169,6 +203,7 @@ private:
 	QString m_currentSongTitle;
 	QString m_currentSongArtists;
 	int m_playbackMode = Sequence;
+	UserProfile m_userProfile;
 
 	void setLoading(bool v);
 	void setCurrentUrl(const QUrl &url);

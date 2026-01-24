@@ -37,9 +37,30 @@ public:
 	QSharedPointer<RequestToken> playlistDetail(const QString &playlistId, const PlaylistDetailCallback &callback) override;
 	QSharedPointer<RequestToken> playlistTracks(const QString &playlistId, int limit, int offset, const PlaylistTracksCallback &callback) override;
 
+	using LoginQrKeyCallback = std::function<void(Result<LoginQrKey>)>;
+	using LoginQrCreateCallback = std::function<void(Result<LoginQrCreate>)>;
+	using LoginQrCheckCallback = std::function<void(Result<LoginQrCheck>)>;
+	using LoginCallback = std::function<void(Result<UserProfile>)>;
+
+	void setCookie(const QString &cookie);
+	QString cookie() const;
+
+	QSharedPointer<RequestToken> loginQrKey(const LoginQrKeyCallback &callback);
+	QSharedPointer<RequestToken> loginQrCreate(const QString &key, const LoginQrCreateCallback &callback);
+	QSharedPointer<RequestToken> loginQrCheck(const QString &key, const LoginQrCheckCallback &callback);
+	QSharedPointer<RequestToken> loginCellphone(const QString &phone, const QString &password, const QString &countryCode, const LoginCallback &callback);
+	QSharedPointer<RequestToken> loginCellphoneCaptcha(const QString &phone, const QString &captcha, const QString &countryCode, const LoginCallback &callback);
+	QSharedPointer<RequestToken> captchaSent(const QString &phone, const QString &countryCode, const std::function<void(Result<bool>)> &callback);
+	QSharedPointer<RequestToken> captchaVerify(const QString &phone, const QString &captcha, const QString &countryCode, const std::function<void(Result<bool>)> &callback);
+	QSharedPointer<RequestToken> loginEmail(const QString &email, const QString &password, const LoginCallback &callback);
+	QSharedPointer<RequestToken> loginRefresh(const LoginCallback &callback);
+	QSharedPointer<RequestToken> logout(const std::function<void(Result<bool>)> &callback);
+	QSharedPointer<RequestToken> loginStatus(const LoginCallback &callback);
+
 private:
 	HttpClient *client;
 	QUrl apiBase;
+	QString m_cookie;
 
 	QUrl buildUrl(const QString &path, const QList<QPair<QString, QString>> &query) const;
 	Result<QList<Song>> parseSearchSongs(const QByteArray &body) const;
@@ -48,6 +69,10 @@ private:
 	Result<Lyric> parseLyric(const QByteArray &body) const;
 	Result<PlaylistMeta> parsePlaylistDetail(const QByteArray &body) const;
 	Result<PlaylistTracksPage> parsePlaylistTracks(const QString &playlistId, int limit, int offset, const QByteArray &body) const;
+	Result<LoginQrKey> parseLoginQrKey(const QByteArray &body) const;
+	Result<LoginQrCreate> parseLoginQrCreate(const QByteArray &body) const;
+	Result<LoginQrCheck> parseLoginQrCheck(const QByteArray &body) const;
+	Result<UserProfile> parseLoginResult(const QByteArray &body) const;
 };
 
 }

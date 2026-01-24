@@ -316,7 +316,7 @@ MusicController::MusicController(QObject *parent)
 	QMap<QByteArray, QByteArray> headers;
 	headers.insert("Accept", "application/json");
 	httpClient.setDefaultHeaders(headers);
-	httpClient.setUserAgent(QByteArray("QtRewrite/1.0 (NeteaseProvider)"));
+	httpClient.setUserAgent(QByteArray("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 Edg/123.0.0.0"));
 
 	QSettings settings;
 	settings.beginGroup(QStringLiteral("set"));
@@ -795,11 +795,13 @@ void MusicController::requestLyric(const QString &providerId, const QString &son
 			clearLyric();
 			return;
 		}
-		m_lyricModel.setLyric(result.value);
 		saveLyricToCache(key, result.value);
+		m_lyricModel.setLyric(result.value);
 		updateCurrentLyricIndexByPosition(m_player.position());
 	}, QStringList() << providerId);
 }
+
+
 
 void MusicController::requestCover(const QUrl &coverUrl)
 {
@@ -1383,6 +1385,217 @@ void MusicController::loadQueueFromSettings()
 		restored.append(s);
 	}
 	m_queueModel.setSongs(restored);
+}
+
+bool MusicController::loggedIn() const
+{
+	return !m_userProfile.userId.isEmpty();
+}
+
+QString MusicController::userId() const
+{
+	return m_userProfile.userId;
+}
+
+QString MusicController::nickname() const
+{
+	return m_userProfile.nickname;
+}
+
+QUrl MusicController::avatarUrl() const
+{
+	return m_userProfile.avatarUrl;
+}
+
+QString MusicController::signature() const
+{
+	return m_userProfile.signature;
+}
+
+int MusicController::vipType() const
+{
+	return m_userProfile.vipType;
+}
+
+void MusicController::loginQrKey()
+{
+	if (loginToken)
+		loginToken->cancel();
+	loginToken = neteaseProvider->loginQrKey([this](Result<LoginQrKey> result) {
+		if (!result.ok)
+		{
+			emit loginFailed(result.error.message);
+			return;
+		}
+		emit loginQrKeyReceived(result.value.unikey);
+	});
+}
+
+void MusicController::loginQrCreate(const QString &key)
+{
+	if (loginToken)
+		loginToken->cancel();
+	loginToken = neteaseProvider->loginQrCreate(key, [this](Result<LoginQrCreate> result) {
+		if (!result.ok)
+		{
+			emit loginFailed(result.error.message);
+			return;
+		}
+		emit loginQrCreateReceived(result.value.qrImg, result.value.qrUrl);
+	});
+}
+
+void MusicController::loginQrCheck(const QString &key)
+{
+	if (loginToken)
+		loginToken->cancel();
+	loginToken = neteaseProvider->loginQrCheck(key, [this](Result<LoginQrCheck> result) {
+		if (!result.ok)
+		{
+			emit loginFailed(result.error.message);
+			return;
+		}
+		emit loginQrCheckReceived(result.value.code, result.value.message, result.value.cookie);
+		if (result.value.code == 803)
+		{
+			checkLoginStatus();
+		}
+	});
+}
+
+void MusicController::loginCellphone(const QString &phone, const QString &password, const QString &countryCode)
+{
+	if (loginToken)
+		loginToken->cancel();
+	loginToken = neteaseProvider->loginCellphone(phone, password, countryCode, [this](Result<UserProfile> result) {
+		if (!result.ok)
+		{
+			emit loginFailed(result.error.message);
+			return;
+		}
+		m_userProfile = result.value;
+		emit loggedInChanged();
+		emit userProfileChanged();
+		emit loginSuccess(m_userProfile.userId);
+	});
+}
+
+void MusicController::loginEmail(const QString &email, const QString &password)
+{
+	if (loginToken)
+		loginToken->cancel();
+	loginToken = neteaseProvider->loginEmail(email, password, [this](Result<UserProfile> result) {
+		if (!result.ok)
+		{
+			emit loginFailed(result.error.message);
+			return;
+		}
+		m_userProfile = result.value;
+		emit loggedInChanged();
+		emit userProfileChanged();
+		emit loginSuccess(m_userProfile.userId);
+	});
+}
+
+void MusicController::loginRefresh()
+{
+	if (loginToken)
+		loginToken->cancel();
+	loginToken = neteaseProvider->loginRefresh([this](Result<UserProfile> result) {
+		if (!result.ok)
+		{
+			emit loginFailed(result.error.message);
+			return;
+		}
+		m_userProfile = result.value;
+		emit loggedInChanged();
+		emit userProfileChanged();
+	});
+}
+
+void MusicController::logout()
+{
+	if (loginToken)
+		loginToken->cancel();
+	loginToken = neteaseProvider->logout([this](Result<bool> result) {
+		if (!result.ok)
+		{
+			emit loginFailed(result.error.message);
+			return;
+		}
+		m_userProfile = UserProfile();
+		emit loggedInChanged();
+		emit userProfileChanged();
+	});
+}
+
+void MusicController::loginCellphoneCaptcha(const QString &phone, const QString &captcha, const QString &countryCode)
+{
+	if (loginToken)
+		loginToken->cancel();
+	loginToken = neteaseProvider->loginCellphoneCaptcha(phone, captcha, countryCode, [this](Result<UserProfile> result) {
+		if (!result.ok)
+		{
+			emit loginFailed(result.error.message);
+			return;
+		}
+		m_userProfile = result.value;
+		emit loggedInChanged();
+		emit userProfileChanged();
+		emit loginSuccess(m_userProfile.userId);
+	});
+}
+
+void MusicController::captchaSent(const QString &phone, const QString &countryCode)
+{
+	if (loginToken)
+		loginToken->cancel();
+	loginToken = neteaseProvider->captchaSent(phone, countryCode, [this](Result<bool> result) {
+		if (!result.ok)
+		{
+			emit captchaSentReceived(false, result.error.message);
+			return;
+		}
+		emit captchaSentReceived(true, QString());
+	});
+}
+
+void MusicController::captchaVerify(const QString &phone, const QString &captcha, const QString &countryCode)
+{
+	if (loginToken)
+		loginToken->cancel();
+	loginToken = neteaseProvider->captchaVerify(phone, captcha, countryCode, [this](Result<bool> result) {
+		if (!result.ok)
+		{
+			emit captchaVerifyReceived(false, result.error.message);
+			return;
+		}
+		emit captchaVerifyReceived(true, QString());
+	});
+}
+
+void MusicController::playlistRemoveAt(int index)
+{
+	m_playlistModel.removeAt(index);
+}
+
+void MusicController::checkLoginStatus()
+{
+	if (loginToken)
+		loginToken->cancel();
+	loginToken = neteaseProvider->loginStatus([this](Result<UserProfile> result) {
+		if (!result.ok)
+		{
+			m_userProfile = UserProfile();
+			emit loggedInChanged();
+			emit userProfileChanged();
+			return;
+		}
+		m_userProfile = result.value;
+		emit loggedInChanged();
+		emit userProfileChanged();
+		emit loginSuccess(m_userProfile.userId);
+	});
 }
 
 }

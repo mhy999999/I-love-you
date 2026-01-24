@@ -211,7 +211,10 @@ void HttpClient::sendOnce(const HttpRequestOptions &options, const QSharedPointe
 			response.body = reply->readAll();
 
 		// 将 Qt 的网络错误转换为统一的 Error 对象
-		if (reply->error() != QNetworkReply::NoError)
+		// 注意：对于 HTTP 4xx/5xx 错误，Qt 可能会设置 error()，但我们也希望返回 body 供上层解析
+		// 因此仅当 status code 为 0 (完全失败) 或确实是底层网络错误时才视为 failure
+		bool isHttpError = response.statusCode >= 400;
+		if (reply->error() != QNetworkReply::NoError && !isHttpError)
 		{
 			Error e;
 			e.category = ErrorCategory::Network;
@@ -223,7 +226,11 @@ void HttpClient::sendOnce(const HttpRequestOptions &options, const QSharedPointe
 		}
 		else
 		{
-			Logger::debug(QStringLiteral("HTTP ok: status %1, bytes %2").arg(response.statusCode).arg(response.body.size()));
+			if (isHttpError)
+				Logger::warning(QStringLiteral("HTTP error response: status %1, body: %2").arg(response.statusCode).arg(QString::fromUtf8(response.body)));
+			else
+				Logger::debug(QStringLiteral("HTTP ok: status %1, bytes %2").arg(response.statusCode).arg(response.body.size()));
+			
 			callback(Result<HttpResponse>::success(response));
 		}
 

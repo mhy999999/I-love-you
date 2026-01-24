@@ -13,7 +13,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Quick Network Multimedia Svg)
+find_package(Qt6 REQUIRED COMPONENTS Quick Network Multimedia Svg QuickControls2)
 
 qt_standard_project_setup(REQUIRES 6.8)
 
@@ -37,6 +37,7 @@ qt_add_qml_module(appqtrewrite
     QML_FILES
         Main.qml
         LyricOverlay.qml
+        LoginPopup.qml
     RESOURCES
         "ui-asset/black-backgroud/上一首.svg"
         "ui-asset/black-backgroud/下一首.svg"
@@ -56,6 +57,11 @@ qt_add_qml_module(appqtrewrite
         "ui-asset/black-backgroud/music_playerModes/随机.svg"
         "ui-asset/black-backgroud/music_playerModes/心动模式.svg"
         "ui-asset/black-backgroud/music_playerModes/循环.svg"
+        "ui-asset/black-backgroud/login/网易云音乐.svg"
+        "ui-asset/black-backgroud/login/网易邮箱.svg"
+        "ui-asset/black-backgroud/login/二维码.svg"
+        "ui-asset/black-backgroud/login/240显示、可见.svg"
+        "ui-asset/black-backgroud/login/241隐藏、不可见.svg"
         "ui-asset/LyricsFloatingWindow/播放.svg"
         "ui-asset/LyricsFloatingWindow/暂停.svg"
         "ui-asset/LyricsFloatingWindow/上一首.svg"
@@ -73,6 +79,7 @@ qt_add_qml_module(appqtrewrite
         "ui-asset/white-backgroud/music_playerModes/随机.svg"
         "ui-asset/white-backgroud/music_playerModes/心动模式.svg"
         "ui-asset/white-backgroud/music_playerModes/循环.svg"
+        "ui-asset/black-backgroud/删除.svg"
     NO_CACHEGEN
 )
 
@@ -93,7 +100,7 @@ target_include_directories(appqtrewrite
 )
 
 target_link_libraries(appqtrewrite
-	PRIVATE Qt6::Quick Qt6::Network Qt6::Multimedia Qt6::Svg
+	PRIVATE Qt6::Quick Qt6::Network Qt6::Multimedia Qt6::Svg Qt6::QuickControls2
 )
 
 if (MSVC)
