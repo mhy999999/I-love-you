@@ -38,6 +38,7 @@ qt_add_qml_module(appqtrewrite
         Main.qml
         LyricOverlay.qml
         LoginPopup.qml
+        UserMenuPopup.qml
     RESOURCES
         "ui-asset/black-backgroud/上一首.svg"
         "ui-asset/black-backgroud/下一首.svg"
@@ -62,6 +63,7 @@ qt_add_qml_module(appqtrewrite
         "ui-asset/black-backgroud/login/二维码.svg"
         "ui-asset/black-backgroud/login/240显示、可见.svg"
         "ui-asset/black-backgroud/login/241隐藏、不可见.svg"
+        "ui-asset/black-backgroud/login/登录.svg"
         "ui-asset/LyricsFloatingWindow/播放.svg"
         "ui-asset/LyricsFloatingWindow/暂停.svg"
         "ui-asset/LyricsFloatingWindow/上一首.svg"

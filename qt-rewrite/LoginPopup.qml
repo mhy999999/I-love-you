@@ -67,7 +67,6 @@ Popup {
     property string currentQrKey: ""
     property string qrStatusMessage: qsTr("使用网易云音乐APP扫码登录")
     property bool isQrMode: stackLayout.currentIndex === 0
-    property bool isPhoneCaptchaMode: false
     property string loginErrorMessage: ""
     property bool loginErrorVisible: false
     property string loginInfoMessage: ""
@@ -381,56 +380,8 @@ Popup {
 						height: 40
 						border.color: "#e5e7eb"
 						border.width: 1
-						radius: 20 // Rounded pill shape
-						visible: !isPhoneCaptchaMode // Password mode
-
-						RowLayout {
-							anchors.fill: parent
-							anchors.leftMargin: 15
-							anchors.rightMargin: 15
-							spacing: 5
-
-							TextField {
-								id: phonePwdInput
-								Layout.fillWidth: true
-								Layout.fillHeight: true
-								placeholderText: qsTr("请输入密码")
-								echoMode: passwordVisible ? TextInput.Normal : TextInput.Password
-								property bool passwordVisible: false
-								background: null
-								font.pixelSize: 14
-								color: "#333333"
-								selectByMouse: true
-								verticalAlignment: TextInput.AlignVCenter
-								
-								HoverHandler {
-									cursorShape: Qt.IBeamCursor
-								}
-							}
-
-							Image {
-								Layout.preferredWidth: 20
-								Layout.preferredHeight: 20
-								source: phonePwdInput.passwordVisible ? "qrc:/qt/qml/qtrewrite/ui-asset/black-backgroud/login/240显示、可见.svg" : "qrc:/qt/qml/qtrewrite/ui-asset/black-backgroud/login/241隐藏、不可见.svg"
-								fillMode: Image.PreserveAspectFit
-								opacity: 0.5
-								
-								MouseArea {
-									anchors.fill: parent
-									cursorShape: Qt.PointingHandCursor
-									onClicked: phonePwdInput.passwordVisible = !phonePwdInput.passwordVisible
-								}
-							}
-						}
-					}
-					
-					Rectangle {
-						Layout.fillWidth: true
-						height: 40
-						border.color: "#e5e7eb"
-						border.width: 1
 						radius: 20
-						visible: isPhoneCaptchaMode // Captcha mode
+						// Always visible for Captcha mode
 
 						RowLayout {
 							anchors.fill: parent
@@ -472,7 +423,7 @@ Popup {
 						}
 					}
 
-					// Auto Login & Switch Mode
+					// Auto Login
 					RowLayout {
 						Layout.fillWidth: true
 						CheckBox {
@@ -513,17 +464,6 @@ Popup {
 								cursorShape: Qt.PointingHandCursor
 							}
 						}
-						Item { Layout.fillWidth: true }
-						Text {
-							text: isPhoneCaptchaMode ? qsTr("密码登录") : qsTr("验证码登录")
-							font.pixelSize: 12
-							color: "#666666"
-							MouseArea {
-								anchors.fill: parent
-								cursorShape: Qt.PointingHandCursor
-								onClicked: isPhoneCaptchaMode = !isPhoneCaptchaMode
-							}
-						}
 					}
 					
 					// Login Button
@@ -543,11 +483,7 @@ Popup {
 							horizontalAlignment: Text.AlignHCenter
 						}
 						onClicked: {
-							if (isPhoneCaptchaMode) {
-								musicController.loginCellphoneCaptcha(phoneInput.text, captchaInput.text, countryCombo.currentText)
-							} else {
-								musicController.loginCellphone(phoneInput.text, phonePwdInput.text, countryCombo.currentText)
-							}
+							musicController.loginCellphoneCaptcha(phoneInput.text, captchaInput.text, countryCombo.currentText)
 						}
 						
 						HoverHandler {
@@ -578,276 +514,9 @@ Popup {
 					Layout.alignment: Qt.AlignHCenter
 					spacing: 20
 					
-					Image {
-						Layout.preferredWidth: 28
-						Layout.preferredHeight: 28
-						sourceSize.width: 28
-						sourceSize.height: 28
-						source: "qrc:/qt/qml/qtrewrite/ui-asset/black-backgroud/login/网易邮箱.svg"
-						fillMode: Image.PreserveAspectFit
-						
-						MouseArea {
-							anchors.fill: parent
-							cursorShape: Qt.PointingHandCursor
-							onClicked: stackLayout.currentIndex = 2
-						}
-					}
-				}
-			}
-		}
-
-		// Page 3: Email Login
-		Item {
-			id: emailPage
-
-			// Back Button (Top Left)
-			Item {
-				anchors.top: parent.top
-				anchors.left: parent.left
-				anchors.margins: 10
-				width: backRow.implicitWidth
-				height: backRow.implicitHeight
-
-				RowLayout {
-					id: backRow
-					anchors.fill: parent
-					spacing: 5
-					
-					Text {
-						text: "<"
-						font.pixelSize: 18
-						color: "#999999"
-					}
-					Text {
-						text: qsTr("返回手机登录")
-						font.pixelSize: 14
-						color: "#333333"
-					}
-				}
-				
-				MouseArea {
-					anchors.fill: parent
-					cursorShape: Qt.PointingHandCursor
-					onClicked: stackLayout.currentIndex = 1
-				}
-			}
-
-			// Close Button
-			Button {
-				text: "×"
-				font.pixelSize: 24
-				background: null
-				anchors.top: parent.top
-				anchors.right: parent.right
-				anchors.margins: 10
-				onClicked: loginPopup.close()
-				HoverHandler {
-					cursorShape: Qt.PointingHandCursor
-				}
-			}
-
-			ColumnLayout {
-				anchors.centerIn: parent
-				width: parent.width - 60
-				spacing: 20
-
-				// Logo Area
-				ColumnLayout {
-					Layout.alignment: Qt.AlignHCenter
-					spacing: 10
-					
-					Image {
-						width: 80
-						height: 80
-						source: "qrc:/qt/qml/qtrewrite/ui-asset/black-backgroud/login/网易云音乐.svg"
-						fillMode: Image.PreserveAspectFit
-						Layout.alignment: Qt.AlignHCenter
-						mipmap: true
-					}
-					Text {
-						text: qsTr("AlgerReWrite")
-						font.pixelSize: 20
-						font.weight: Font.Bold
-						color: "#333333"
-						Layout.alignment: Qt.AlignHCenter
-					}
-				}
-
-				// Input Area
-				ColumnLayout {
-					Layout.fillWidth: true
-					spacing: 15
-
-					// Email Input
-					Rectangle {
-						Layout.fillWidth: true
-						height: 40
-						border.color: "#e5e7eb"
-						border.width: 1
-						radius: 20
-						
-						TextField {
-							id: emailInput
-							placeholderText: qsTr("邮箱账号")
-							anchors.fill: parent
-							anchors.leftMargin: 15
-							anchors.rightMargin: 15
-							background: null
-							font.pixelSize: 14
-							color: "#333333"
-							selectByMouse: true
-							verticalAlignment: TextInput.AlignVCenter
-							
-							HoverHandler {
-								cursorShape: Qt.IBeamCursor
-							}
-						}
-					}
-
-					// Password Input
-					Rectangle {
-						Layout.fillWidth: true
-						height: 40
-						border.color: "#e5e7eb"
-						border.width: 1
-						radius: 20
-
-						RowLayout {
-							anchors.fill: parent
-							anchors.leftMargin: 15
-							anchors.rightMargin: 15
-							spacing: 5
-
-							TextField {
-								id: emailPwdInput
-								Layout.fillWidth: true
-								Layout.fillHeight: true
-								placeholderText: qsTr("请输入密码")
-								echoMode: emailPasswordVisible ? TextInput.Normal : TextInput.Password
-								property bool emailPasswordVisible: false
-								background: null
-								font.pixelSize: 14
-								color: "#333333"
-								selectByMouse: true
-								verticalAlignment: TextInput.AlignVCenter
-								
-								HoverHandler {
-									cursorShape: Qt.IBeamCursor
-								}
-							}
-
-							Image {
-								Layout.preferredWidth: 20
-								Layout.preferredHeight: 20
-								source: emailPwdInput.emailPasswordVisible ? "qrc:/qt/qml/qtrewrite/ui-asset/black-backgroud/login/240显示、可见.svg" : "qrc:/qt/qml/qtrewrite/ui-asset/black-backgroud/login/241隐藏、不可见.svg"
-								fillMode: Image.PreserveAspectFit
-								opacity: 0.5
-								
-								MouseArea {
-									anchors.fill: parent
-									cursorShape: Qt.PointingHandCursor
-									onClicked: emailPwdInput.emailPasswordVisible = !emailPwdInput.emailPasswordVisible
-								}
-							}
-						}
-					}
-					
-					// Options
-					RowLayout {
-						Layout.fillWidth: true
-						CheckBox {
-							text: qsTr("自动登录")
-							font.pixelSize: 12
-							checked: true
-							palette.windowText: "#999999"
-							
-							indicator: Rectangle {
-								implicitWidth: 16
-								implicitHeight: 16
-								x: parent.leftPadding
-								y: parent.height / 2 - height / 2
-								radius: 3
-								border.color: parent.down ? "#dd001b" : "#999999"
-								
-								Rectangle {
-									width: 10
-									height: 10
-									x: 3
-									y: 3
-									radius: 2
-									color: "#dd001b"
-									visible: parent.parent.checked
-								}
-							}
-							
-							contentItem: Text {
-								text: parent.text
-								font: parent.font
-								opacity: enabled ? 1.0 : 0.3
-								color: parent.down ? "#dd001b" : "#999999"
-								verticalAlignment: Text.AlignVCenter
-								leftPadding: parent.indicator.width + 4
-							}
-							
-							HoverHandler {
-								cursorShape: Qt.PointingHandCursor
-							}
-						}
-						Item { Layout.fillWidth: true }
-						Text {
-							text: qsTr("忘记密码")
-							font.pixelSize: 12
-							color: "#666666"
-							MouseArea {
-								anchors.fill: parent
-								cursorShape: Qt.PointingHandCursor
-								// TODO: Forgot password
-							}
-						}
-					}
-					
-					// Login Button (Gradient)
-					Button {
-						Layout.fillWidth: true
-						Layout.preferredHeight: 40
-						background: Rectangle {
-							radius: 20
-							gradient: Gradient {
-								orientation: Gradient.Horizontal
-								GradientStop { position: 0.0; color: "#ff5a4c" }
-								GradientStop { position: 1.0; color: "#ff1d12" }
-							}
-						}
-						contentItem: Text {
-							text: qsTr("登录")
-							color: "white"
-							font.bold: true
-							font.pixelSize: 16
-							verticalAlignment: Text.AlignVCenter
-							horizontalAlignment: Text.AlignHCenter
-						}
-						onClicked: {
-							console.log("Email login clicked: " + emailInput.text)
-							musicController.loginEmail(emailInput.text, emailPwdInput.text)
-						}
-						
-						HoverHandler {
-							cursorShape: Qt.PointingHandCursor
-						}
-					}
-
-					Text {
-						id: errorText3
-						visible: loginErrorVisible
-						text: loginErrorMessage
-						color: "red"
-						font.pixelSize: 12
-						Layout.alignment: Qt.AlignHCenter
-					}
+					// Email login removed
 				}
 			}
 		}
 	}
-
-	// Update isQrMode property to reflect StackLayout
 }

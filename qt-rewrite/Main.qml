@@ -138,38 +138,61 @@ ApplicationWindow {
 					width: 40
 					height: 40
 					radius: 12
-					color: "#111827"
+					color: "transparent"
 					
 					property bool hasAvatar: musicController && musicController.loggedIn && musicController.avatarUrl != ""
 					
-					Text {
-						anchors.centerIn: parent
-						text: "M"
-						color: "#ffffff"
-						font.pixelSize: 18
-						font.weight: Font.DemiBold
-						visible: !parent.hasAvatar
-					}
-					
 					Image {
 						anchors.fill: parent
-						source: parent.hasAvatar ? musicController.avatarUrl : ""
+						source: "qrc:/qt/qml/qtrewrite/ui-asset/black-backgroud/login/登录.svg"
+						visible: !parent.hasAvatar
+						fillMode: Image.PreserveAspectFit
+						mipmap: true
+					}
+					
+					Item {
+						anchors.fill: parent
 						visible: parent.hasAvatar
-						fillMode: Image.PreserveAspectCrop
 						
-						layer.enabled: true
-						layer.effect: Rectangle {
-							width: 40
-							height: 40
+						Image {
+							id: sidebarAvatarImg
+							anchors.fill: parent
+							source: musicController.avatarUrl
+							visible: true // Temporarily visible for debugging
+							fillMode: Image.PreserveAspectCrop
+							mipmap: true
+							cache: true
+							onStatusChanged: console.log("Avatar status:", status, source)
+						}
+						
+						// Temporary disable MultiEffect to debug
+						/*
+						MultiEffect {
+							source: sidebarAvatarImg
+							anchors.fill: parent
+							maskEnabled: true
+							maskSource: sidebarMask
+						}
+						*/
+						
+						Rectangle {
+							id: sidebarMask
+							anchors.fill: parent
 							radius: 12
-							color: "black"
+							visible: false
 						}
 					}
 					
 					MouseArea {
 						anchors.fill: parent
 						cursorShape: Qt.PointingHandCursor
-						onClicked: loginPopup.open()
+						onClicked: {
+							if (parent.hasAvatar) {
+								userMenuPopup.open()
+							} else {
+								loginPopup.open()
+							}
+						}
 					}
 				}
 
@@ -1442,6 +1465,10 @@ ApplicationWindow {
 	}
 	LoginPopup {
 		id: loginPopup
+	}
+
+	UserMenuPopup {
+		id: userMenuPopup
 	}
 
 	LyricOverlay {

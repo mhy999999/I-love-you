@@ -1943,6 +1943,7 @@ Result<LoginQrCheck> NeteaseProvider::parseLoginQrCheck(const QByteArray &body) 
 
 Result<UserProfile> NeteaseProvider::parseLoginResult(const QByteArray &body) const
 {
+	Logger::info(QStringLiteral("Login response: %1").arg(QString::fromUtf8(body)));
 	QJsonParseError err{};
 	QJsonDocument doc = QJsonDocument::fromJson(body, &err);
 	if (err.error != QJsonParseError::NoError || !doc.isObject())
@@ -1966,7 +1967,12 @@ Result<UserProfile> NeteaseProvider::parseLoginResult(const QByteArray &body) co
 	UserProfile user;
 	user.userId = profile.value(QStringLiteral("userId")).toVariant().toString();
 	user.nickname = profile.value(QStringLiteral("nickname")).toString();
-	user.avatarUrl = QUrl(profile.value(QStringLiteral("avatarUrl")).toString());
+	QString rawAvatarUrl = profile.value(QStringLiteral("avatarUrl")).toString();
+	if (!rawAvatarUrl.isEmpty() && !rawAvatarUrl.contains(QStringLiteral("?param=")))
+	{
+		rawAvatarUrl += QStringLiteral("?param=50y50");
+	}
+	user.avatarUrl = QUrl(rawAvatarUrl);
 	user.signature = profile.value(QStringLiteral("signature")).toString();
 	user.vipType = profile.value(QStringLiteral("vipType")).toInt();
 	

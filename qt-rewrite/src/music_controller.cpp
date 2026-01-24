@@ -93,7 +93,11 @@ QString findEmbeddedMusicApiDir(const QString &preferredDir)
 			return dir;
 	}
 
-	const QStringList roots = {QDir::currentPath(), QCoreApplication::applicationDirPath()};
+	const QStringList roots = {
+		QDir::currentPath(),
+		QCoreApplication::applicationDirPath(),
+		QStringLiteral("D:/project/I-love-you/qt-rewrite")
+	};
 	for (const QString &root : roots)
 	{
 		QDir dir(root);
@@ -200,7 +204,8 @@ bool startNeteaseMusicApiOnPort(QObject *parent, int port, const QString &apiDir
 	QString js = QStringLiteral(
 		"const mod=require('netease-cloud-music-api-alger/server');"
 		"const api=mod.default||mod;"
-		"api.serveNcmApi({port:%1}).catch(e=>{console.error(e);process.exit(1);});"
+		"console.log('Starting Netease API on port %1');"
+		"api.serveNcmApi({port:%1, checkVersion:true}).then(()=>console.log('API Started')).catch(e=>{console.error(e);process.exit(1);});"
 	).arg(port);
 
 	p->setProgram(QStringLiteral("node"));
@@ -247,7 +252,7 @@ QUrl resolveLocalMusicApiBaseUrl()
 {
 	QSettings settings;
 	settings.beginGroup(QStringLiteral("set"));
-	int startPort = settings.value(QStringLiteral("musicApiPort"), 30488).toInt();
+	int startPort = settings.value(QStringLiteral("musicApiPort"), 30490).toInt();
 	settings.endGroup();
 
 	int port = startPort;
@@ -371,6 +376,15 @@ MusicController::MusicController(QObject *parent)
 	cfg.providerOrder = QStringList() << neteaseProvider->id() << gdStudioProvider->id();
 	cfg.fallbackEnabled = true;
 	providerManager.setConfig(cfg);
+
+	settings.beginGroup(QStringLiteral("auth"));
+	QString cookie = settings.value(QStringLiteral("cookie")).toString();
+	settings.endGroup();
+	if (!cookie.isEmpty())
+	{
+		neteaseProvider->setCookie(cookie);
+		checkLoginStatus();
+	}
 
 	m_player.setAudioOutput(new QAudioOutput(this));
 	QObject::connect(&m_player, &QMediaPlayer::playbackStateChanged, this, [this](QMediaPlayer::PlaybackState state) {
@@ -1458,7 +1472,12 @@ void MusicController::loginQrCheck(const QString &key)
 		emit loginQrCheckReceived(result.value.code, result.value.message, result.value.cookie);
 		if (result.value.code == 803)
 		{
-			checkLoginStatus();
+			neteaseProvider->setCookie(result.value.cookie);
+			QSettings settings;
+			settings.beginGroup(QStringLiteral("auth"));
+			settings.setValue(QStringLiteral("cookie"), result.value.cookie);
+			settings.endGroup();
+			QTimer::singleShot(0, this, [this] { checkLoginStatus(); });
 		}
 	});
 }
@@ -1474,6 +1493,14 @@ void MusicController::loginCellphone(const QString &phone, const QString &passwo
 			return;
 		}
 		m_userProfile = result.value;
+		if (!m_userProfile.cookie.isEmpty())
+		{
+			neteaseProvider->setCookie(m_userProfile.cookie);
+			QSettings settings;
+			settings.beginGroup(QStringLiteral("auth"));
+			settings.setValue(QStringLiteral("cookie"), m_userProfile.cookie);
+			settings.endGroup();
+		}
 		emit loggedInChanged();
 		emit userProfileChanged();
 		emit loginSuccess(m_userProfile.userId);
@@ -1491,6 +1518,14 @@ void MusicController::loginEmail(const QString &email, const QString &password)
 			return;
 		}
 		m_userProfile = result.value;
+		if (!m_userProfile.cookie.isEmpty())
+		{
+			neteaseProvider->setCookie(m_userProfile.cookie);
+			QSettings settings;
+			settings.beginGroup(QStringLiteral("auth"));
+			settings.setValue(QStringLiteral("cookie"), m_userProfile.cookie);
+			settings.endGroup();
+		}
 		emit loggedInChanged();
 		emit userProfileChanged();
 		emit loginSuccess(m_userProfile.userId);
@@ -1524,6 +1559,11 @@ void MusicController::logout()
 			return;
 		}
 		m_userProfile = UserProfile();
+		neteaseProvider->setCookie(QString());
+		QSettings settings;
+		settings.beginGroup(QStringLiteral("auth"));
+		settings.remove(QStringLiteral("cookie"));
+		settings.endGroup();
 		emit loggedInChanged();
 		emit userProfileChanged();
 	});
@@ -1540,6 +1580,14 @@ void MusicController::loginCellphoneCaptcha(const QString &phone, const QString 
 			return;
 		}
 		m_userProfile = result.value;
+		if (!m_userProfile.cookie.isEmpty())
+		{
+			neteaseProvider->setCookie(m_userProfile.cookie);
+			QSettings settings;
+			settings.beginGroup(QStringLiteral("auth"));
+			settings.setValue(QStringLiteral("cookie"), m_userProfile.cookie);
+			settings.endGroup();
+		}
 		emit loggedInChanged();
 		emit userProfileChanged();
 		emit loginSuccess(m_userProfile.userId);
@@ -1592,6 +1640,14 @@ void MusicController::checkLoginStatus()
 			return;
 		}
 		m_userProfile = result.value;
+		if (!m_userProfile.cookie.isEmpty())
+		{
+			neteaseProvider->setCookie(m_userProfile.cookie);
+			QSettings settings;
+			settings.beginGroup(QStringLiteral("auth"));
+			settings.setValue(QStringLiteral("cookie"), m_userProfile.cookie);
+			settings.endGroup();
+		}
 		emit loggedInChanged();
 		emit userProfileChanged();
 		emit loginSuccess(m_userProfile.userId);
