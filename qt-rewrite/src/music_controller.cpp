@@ -1580,7 +1580,20 @@ void MusicController::queueRemoveAt(int index)
 
 void MusicController::queueClear()
 {
+	stop();
 	m_queueModel.clear();
+	setCurrentSongIndex(-1);
+	
+	// Reset current song info
+	setCurrentSongTitle(QString());
+	setCurrentSongArtists(QString());
+	setCoverSource(QUrl());
+	clearLyric();
+	m_currentSongId.clear();
+	setCurrentUrl(QUrl());
+	setPositionMs(0);
+	setDurationMs(0);
+
 	saveQueueToSettings();
 }
 
@@ -1815,15 +1828,25 @@ void MusicController::logout()
 	loginToken = neteaseProvider->logout([this](Result<bool> result) {
 		if (!result.ok)
 		{
-			emit loginFailed(result.error.message);
-			return;
+			// Even if server logout fails, we clear local session
+			Logger::warning("Logout failed on server: " + result.error.message);
 		}
+
 		m_userProfile = UserProfile();
 		neteaseProvider->setCookie(QString());
 		QSettings settings;
 		settings.beginGroup(QStringLiteral("auth"));
 		settings.remove(QStringLiteral("cookie"));
 		settings.endGroup();
+
+		// Clear user data
+		m_userPlaylistModel.clear();
+		// Also clear current playlist context as it might be user-specific
+		m_playlistModel.clear();
+		setPlaylistName(QString());
+		m_playlistId.clear();
+		setPlaylistHasMore(false);
+
 		emit loggedInChanged();
 		emit userProfileChanged();
 	});
@@ -1895,6 +1918,15 @@ void MusicController::checkLoginStatus()
 		if (!result.ok)
 		{
 			m_userProfile = UserProfile();
+			
+			// Clear user data
+			m_userPlaylistModel.clear();
+			// Also clear current playlist context as it might be user-specific
+			m_playlistModel.clear();
+			setPlaylistName(QString());
+			m_playlistId.clear();
+			setPlaylistHasMore(false);
+
 			emit loggedInChanged();
 			emit userProfileChanged();
 			return;

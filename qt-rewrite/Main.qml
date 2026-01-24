@@ -1679,6 +1679,35 @@ ApplicationWindow {
 								color: "#6b7280"
 								font.pixelSize: 12
 							}
+							
+							Rectangle {
+								width: 28
+								height: 28
+								radius: 4
+								color: clearBtnArea.containsMouse ? "#f3f4f6" : "transparent"
+								visible: queueListView.count > 0
+
+								Image {
+									anchors.centerIn: parent
+									source: iconDelete
+									width: 16
+									height: 16
+									sourceSize: Qt.size(32, 32)
+									opacity: 0.6
+								}
+
+								MouseArea {
+									id: clearBtnArea
+									anchors.fill: parent
+									hoverEnabled: true
+									cursorShape: Qt.PointingHandCursor
+									onClicked: {
+										if (musicController) musicController.queueClear()
+									}
+								}
+								ToolTip.visible: clearBtnArea.containsMouse
+								ToolTip.text: qsTr("清空列表")
+							}
 						}
 						Frame {
 							Layout.fillWidth: true
