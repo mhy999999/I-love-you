@@ -356,10 +356,10 @@ QUrl NeteaseProvider::buildUrl(const QString &path, const QList<QPair<QString, Q
 	return url;
 }
 
-QSharedPointer<RequestToken> NeteaseProvider::search(const QString &keyword, int limit, const SearchCallback &callback)
+QSharedPointer<RequestToken> NeteaseProvider::search(const QString &keyword, int limit, int offset, const SearchCallback &callback)
 {
 	HttpRequestOptions opts;
-	opts.url = buildUrl(QStringLiteral("/cloudsearch"), {{QStringLiteral("keywords"), keyword}, {QStringLiteral("type"), QStringLiteral("1")}, {QStringLiteral("limit"), QString::number(limit > 0 ? limit : 30)}});
+	opts.url = buildUrl(QStringLiteral("/cloudsearch"), {{QStringLiteral("keywords"), keyword}, {QStringLiteral("type"), QStringLiteral("1")}, {QStringLiteral("limit"), QString::number(limit > 0 ? limit : 30)}, {QStringLiteral("offset"), QString::number(offset)}});
 	return client->sendWithRetry(opts, 2, 500, [this, callback](Result<HttpResponse> result) {
 		if (!result.ok)
 		{

@@ -423,7 +423,7 @@ ApplicationWindow {
 						Layout.fillHeight: true
 
 						Frame {
-							Layout.preferredWidth: 420
+							Layout.preferredWidth: 500
 							Layout.fillWidth: true
 							Layout.fillHeight: true
 							background: Rectangle {
@@ -603,6 +603,34 @@ ApplicationWindow {
 								model: musicController ? musicController.songsModel : null
 								clip: true
 								ScrollBar.vertical: ScrollBar { active: true }
+                                onContentYChanged: {
+                                    if (contentHeight > height && contentY > (contentHeight - height - 100)) {
+                                        if (musicController && !musicController.loading && musicController.searchHasMore) {
+                                            musicController.loadNextSearchPage()
+                                        }
+                                    }
+                                }
+
+                                footer: Item {
+                                    width: listView.width
+                                    height: 50
+                                    visible: musicController && (musicController.loading || (musicController.searchHasMore && listView.count > 0) || (!musicController.searchHasMore && listView.count > 0))
+                                    
+                                    BusyIndicator {
+                                        anchors.centerIn: parent
+                                        running: musicController && musicController.loading
+                                        visible: running
+                                    }
+                                    
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: qsTr("没有更多了")
+                                        visible: musicController && !musicController.loading && !musicController.searchHasMore && listView.count > 0
+                                        color: "#9ca3af"
+                                        font.pixelSize: 12
+                                    }
+                                }
+
 								delegate: Rectangle {
 									width: listView.width
 									height: 56
@@ -656,7 +684,7 @@ ApplicationWindow {
 											color: "#6b7280"
 											font.pixelSize: 13
 											elide: Text.ElideRight
-											Layout.preferredWidth: 220
+											Layout.preferredWidth: 150
 										}
 
 										Text {
@@ -693,6 +721,7 @@ ApplicationWindow {
 						}
 
 						Frame {
+							Layout.preferredWidth: 500
 							Layout.fillWidth: true
 							Layout.fillHeight: true
 							ColumnLayout {

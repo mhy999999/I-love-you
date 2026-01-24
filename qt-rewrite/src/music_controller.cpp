@@ -971,12 +971,18 @@ void MusicController::search(const QString &keyword)
 {
 	if (keyword.trimmed().isEmpty())
 		return;
+
+	m_searchKeyword = keyword;
+	m_searchOffset = 0;
+	m_searchHasMore = true;
+	emit searchHasMoreChanged();
+
 	// 记录本次搜索序号，保证只展示最新一次搜索结果
 	quint64 requestId = ++m_searchRequestId;
 	if (searchToken)
 		searchToken->cancel();
 	setLoading(true);
-	searchToken = providerManager.search(keyword, 30, [this, requestId](Result<QList<Song>> result) {
+	searchToken = providerManager.search(keyword, m_searchLimit, m_searchOffset, [this, requestId](Result<QList<Song>> result) {
 		if (requestId != m_searchRequestId)
 			return;
 		setLoading(false);
@@ -986,8 +992,52 @@ void MusicController::search(const QString &keyword)
 			emit errorOccurred(result.error.message);
 			return;
 		}
+
+		if (result.value.size() < m_searchLimit)
+		{
+			m_searchHasMore = false;
+			emit searchHasMoreChanged();
+		}
+
 		m_songsModel.setSongs(result.value);
 	});
+}
+
+void MusicController::loadNextSearchPage()
+{
+	if (m_loading || !m_searchHasMore || m_searchKeyword.isEmpty())
+		return;
+
+	m_searchOffset += m_searchLimit;
+	quint64 requestId = m_searchRequestId;
+
+	setLoading(true);
+	// 使用 providerManager.search，复用 searchToken (会自动 cancel 上一次，但此时应当是 idle 状态)
+	searchToken = providerManager.search(m_searchKeyword, m_searchLimit, m_searchOffset, [this, requestId](Result<QList<Song>> result) {
+		if (requestId != m_searchRequestId)
+			return;
+		setLoading(false);
+		if (!result.ok)
+		{
+			Logger::warning(QStringLiteral("Search page load failed: %1 (%2)").arg(result.error.message).arg(result.error.detail));
+			// 加载失败时回退 offset，允许重试
+			m_searchOffset -= m_searchLimit;
+			return;
+		}
+
+		if (result.value.size() < m_searchLimit)
+		{
+			m_searchHasMore = false;
+			emit searchHasMoreChanged();
+		}
+
+		m_songsModel.append(result.value);
+	});
+}
+
+bool MusicController::searchHasMore() const
+{
+	return m_searchHasMore;
 }
 
 void MusicController::playIndex(int index)

@@ -38,6 +38,7 @@ public:
 
 	// 供控制器维护队列
     void append(const Song &song);
+    void append(const QList<Song> &songs);
     void insert(int index, const Song &song);
     void removeAt(int index);
     void clear();

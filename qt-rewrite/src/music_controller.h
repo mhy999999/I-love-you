@@ -56,6 +56,7 @@ class MusicController : public QObject
 	Q_PROPERTY(QString signature READ signature NOTIFY userProfileChanged)
 	Q_PROPERTY(int vipType READ vipType NOTIFY userProfileChanged)
     Q_PROPERTY(int playlistPageSize READ playlistPageSize WRITE setPlaylistPageSize NOTIFY playlistPageSizeChanged)
+	Q_PROPERTY(bool searchHasMore READ searchHasMore NOTIFY searchHasMoreChanged)
 
 public:
 	enum PlaybackMode
@@ -138,6 +139,8 @@ public:
 	Q_INVOKABLE void playlistRemoveAt(int index);
 	Q_INVOKABLE void loadUserPlaylist(const QString &uid = QString());
 	Q_INVOKABLE void onPlaylistRowRequested(int index);
+	Q_INVOKABLE void loadNextSearchPage();
+	bool searchHasMore() const;
 
 signals:
 	void loadingChanged();
@@ -159,6 +162,7 @@ signals:
 	void playbackModeChanged();
     void playlistPageSizeChanged();
 	void loggedInChanged();
+	void searchHasMoreChanged();
 	void userProfileChanged();
 	void loginQrKeyReceived(const QString &key);
 	void loginQrCreateReceived(const QString &qrImg, const QString &qrUrl);
@@ -221,6 +225,11 @@ private:
 	QString m_currentSongArtists;
 	int m_playbackMode = Sequence;
 	UserProfile m_userProfile;
+	
+	QString m_searchKeyword;
+	int m_searchOffset = 0;
+	int m_searchLimit = 30;
+	bool m_searchHasMore = false;
 
 	void setLoading(bool v);
 	void setCurrentUrl(const QUrl &url);

@@ -85,7 +85,7 @@ bool GdStudioProvider::supportsPlaylistTracks() const
 	return false;
 }
 
-QSharedPointer<RequestToken> GdStudioProvider::search(const QString &keyword, int limit, const SearchCallback &callback)
+QSharedPointer<RequestToken> GdStudioProvider::search(const QString &keyword, int limit, int offset, const SearchCallback &callback)
 {
 	HttpRequestOptions opts;
 	QUrl url = apiBase;
@@ -93,8 +93,10 @@ QSharedPointer<RequestToken> GdStudioProvider::search(const QString &keyword, in
 	q.addQueryItem(QStringLiteral("types"), QStringLiteral("search"));
 	q.addQueryItem(QStringLiteral("source"), QStringLiteral("netease"));
 	q.addQueryItem(QStringLiteral("name"), keyword);
-	q.addQueryItem(QStringLiteral("count"), QStringLiteral("%1").arg(limit > 0 ? limit : 30));
-	q.addQueryItem(QStringLiteral("pages"), QStringLiteral("1"));
+	int count = limit > 0 ? limit : 30;
+	q.addQueryItem(QStringLiteral("count"), QString::number(count));
+	int page = (offset / count) + 1;
+	q.addQueryItem(QStringLiteral("pages"), QString::number(page));
 	url.setQuery(q);
 	opts.url = url;
 	opts.timeoutMs = 6000;

@@ -89,7 +89,7 @@ QStringList ProviderManager::normalizeOrder(const QStringList &order) const
 }
 
 // 搜索歌曲，按顺序尝试多个 Provider 并在失败时自动 fallback
-QSharedPointer<RequestToken> ProviderManager::search(const QString &keyword, int limit, const IProvider::SearchCallback &callback, const QStringList &preferredProviderIds)
+QSharedPointer<RequestToken> ProviderManager::search(const QString &keyword, int limit, int offset, const IProvider::SearchCallback &callback, const QStringList &preferredProviderIds)
 {
 	QList<IProvider *> candidates = resolveProviders(preferredProviderIds, [](IProvider *p) { return p->supportsSearch(); });
 	if (candidates.isEmpty())
@@ -111,7 +111,7 @@ QSharedPointer<RequestToken> ProviderManager::search(const QString &keyword, int
 	};
 	QSharedPointer<State> state = QSharedPointer<State>::create();
 	QSharedPointer<std::function<void()>> nextFn = QSharedPointer<std::function<void()>>::create();
-	*nextFn = [this, keyword, limit, candidates, callback, masterToken, state, nextFn]() {
+	*nextFn = [this, keyword, limit, offset, candidates, callback, masterToken, state, nextFn]() {
 		// 若外层已取消，则不再继续
 		if (masterToken->isCancelled())
 		{
@@ -126,7 +126,7 @@ QSharedPointer<RequestToken> ProviderManager::search(const QString &keyword, int
 			return;
 		}
 		IProvider *provider = candidates.at(state->index);
-		state->currentToken = provider->search(keyword, limit, [this, callback, masterToken, state, nextFn, candidates](Result<QList<Song>> result) {
+		state->currentToken = provider->search(keyword, limit, offset, [this, callback, masterToken, state, nextFn, candidates](Result<QList<Song>> result) {
 			if (masterToken->isCancelled())
 				return;
 			// 成功或未启用 fallback 时直接返回

@@ -65,8 +65,8 @@ public:
 	using PlaylistDetailCallback = std::function<void(Result<PlaylistMeta>)>;
 	using PlaylistTracksCallback = std::function<void(Result<PlaylistTracksPage>)>;
 
-	// 按关键字搜索歌曲，limit 控制最大返回条数
-	virtual QSharedPointer<RequestToken> search(const QString &keyword, int limit, const SearchCallback &callback) = 0;
+	// 按关键字搜索歌曲，limit 控制最大返回条数，offset 控制偏移量
+	virtual QSharedPointer<RequestToken> search(const QString &keyword, int limit, int offset, const SearchCallback &callback) = 0;
 	// 根据歌曲 id 获取完整详情
 	virtual QSharedPointer<RequestToken> songDetail(const QString &songId, const SongDetailCallback &callback) = 0;
 	// 根据歌曲 id 获取可播放地址

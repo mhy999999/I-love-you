@@ -116,6 +116,15 @@ void SongListModel::append(const Song &song)
     endInsertRows();
 }
 
+void SongListModel::append(const QList<Song> &songs)
+{
+    if (songs.isEmpty()) return;
+    int pos = m_songs.size();
+    beginInsertRows(QModelIndex(), pos, pos + songs.size() - 1);
+    m_songs.append(songs);
+    endInsertRows();
+}
+
 void SongListModel::insert(int index, const Song &song)
 {
     int pos = qBound(0, index, m_songs.size());

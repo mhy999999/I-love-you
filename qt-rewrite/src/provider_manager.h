@@ -48,7 +48,7 @@ public:
 	ProviderManagerConfig config() const;
 
 	// 搜索歌曲，按配置顺序与 fallback 策略选择 Provider
-	QSharedPointer<RequestToken> search(const QString &keyword, int limit, const IProvider::SearchCallback &callback, const QStringList &preferredProviderIds = {});
+	QSharedPointer<RequestToken> search(const QString &keyword, int limit, int offset, const IProvider::SearchCallback &callback, const QStringList &preferredProviderIds = {});
 	// 获取歌曲详情，支持多 Provider fallback
 	QSharedPointer<RequestToken> songDetail(const QString &songId, const IProvider::SongDetailCallback &callback, const QStringList &preferredProviderIds = {});
 	// 获取播放地址，支持多 Provider fallback
