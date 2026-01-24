@@ -5,6 +5,7 @@
 
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QUrlQuery>
 #include <QTimer>
 
 namespace App
@@ -171,7 +172,18 @@ void HttpClient::sendOnce(const HttpRequestOptions &options, const QSharedPointe
 	// 根据 method 选择 GET/POST/PUT
 	QNetworkReply *reply = nullptr;
 	const QByteArray method = options.method.isEmpty() ? QByteArray("GET") : options.method.toUpper();
-	Logger::debug(QStringLiteral("HTTP %1 %2").arg(QString::fromLatin1(method)).arg(options.url.toString(QUrl::FullyEncoded)));
+	
+	QUrl logUrl = options.url;
+	if (logUrl.hasQuery()) {
+		QUrlQuery query(logUrl);
+		if (query.hasQueryItem(QStringLiteral("cookie"))) {
+			query.removeQueryItem(QStringLiteral("cookie"));
+			query.addQueryItem(QStringLiteral("cookie"), QStringLiteral("<redacted>"));
+			logUrl.setQuery(query);
+		}
+	}
+	Logger::debug(QStringLiteral("HTTP %1 %2").arg(QString::fromLatin1(method)).arg(logUrl.toString(QUrl::FullyEncoded)));
+
 	if (method == "POST")
 		reply = manager.post(request, options.body);
 	else if (method == "PUT")

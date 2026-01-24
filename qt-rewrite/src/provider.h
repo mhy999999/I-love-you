@@ -50,6 +50,7 @@ public:
 	virtual bool supportsCover() const { return false; }
 	virtual bool supportsPlaylistDetail() const { return false; }
 	virtual bool supportsPlaylistTracks() const { return false; }
+	virtual bool supportsUserPlaylist() const { return false; }
 
 	// 搜索结果回调类型：返回歌曲列表或错误
 	using SearchCallback = std::function<void(Result<QList<Song>>) >;

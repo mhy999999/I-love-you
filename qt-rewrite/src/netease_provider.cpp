@@ -855,8 +855,6 @@ QSharedPointer<RequestToken> NeteaseProvider::playUrl(const QString &songId, con
 				p.url = QUrl(urlStr);
 				p.bitrate = o.value(QStringLiteral("br")).toVariant().toInt();
 				p.size = static_cast<qint64>(o.value(QStringLiteral("size")).toVariant().toLongLong());
-				Logger::info(QStringLiteral("GD Studio url resolved: %1, br=%2, size=%3")
-							 .arg(p.url.toString(), QString::number(p.bitrate), QString::number(p.size)));
 				finish(Result<PlayUrl>::success(p));
 				});
 				cancelIfOuterCancelled(urlToken);
@@ -923,8 +921,6 @@ QSharedPointer<RequestToken> NeteaseProvider::playUrl(const QString &songId, con
 			p.url = QUrl(urlStr);
 			p.bitrate = o.value(QStringLiteral("br")).toVariant().toInt();
 			p.size = static_cast<qint64>(o.value(QStringLiteral("size")).toVariant().toLongLong());
-			Logger::info(QStringLiteral("GD Studio direct url resolved: %1, br=%2, size=%3")
-						 .arg(p.url.toString(), QString::number(p.bitrate), QString::number(p.size)));
 			finish(Result<PlayUrl>::success(p));
 		});
 		cancelIfOuterCancelled(urlToken);
@@ -1046,7 +1042,6 @@ QSharedPointer<RequestToken> NeteaseProvider::lyric(const QString &songId, const
 	QString firstUrlStr = firstUrl.toString(QUrl::FullyEncoded);
 	HttpRequestOptions opts;
 	opts.url = firstUrl;
-	Logger::info(QStringLiteral("Lyric request: %1").arg(firstUrlStr));
 	QSharedPointer<RequestToken> first = client->sendWithRetry(opts, 2, 500, [this, songId, callback, token, firstUrlStr](Result<HttpResponse> result) {
 		if (token->isCancelled())
 			return;
@@ -1058,7 +1053,6 @@ QSharedPointer<RequestToken> NeteaseProvider::lyric(const QString &songId, const
 		Result<Lyric> parsed = parseLyric(result.value.body);
 		if (parsed.ok && !parsed.value.lines.isEmpty())
 		{
-			Logger::info(QStringLiteral("Lyric resolved: %1").arg(firstUrlStr));
 			callback(parsed);
 			return;
 		}
@@ -1067,7 +1061,6 @@ QSharedPointer<RequestToken> NeteaseProvider::lyric(const QString &songId, const
 		QString legacyUrlStr = legacyUrl.toString(QUrl::FullyEncoded);
 		HttpRequestOptions legacy;
 		legacy.url = legacyUrl;
-		Logger::info(QStringLiteral("Lyric request(legacy): %1").arg(legacyUrlStr));
 		QSharedPointer<RequestToken> second = client->sendWithRetry(legacy, 1, 500, [this, callback, token, legacyUrlStr](Result<HttpResponse> legacyResult) {
 			if (token->isCancelled())
 				return;
@@ -1077,8 +1070,6 @@ QSharedPointer<RequestToken> NeteaseProvider::lyric(const QString &songId, const
 				return;
 			}
 			Result<Lyric> lr = parseLyric(legacyResult.value.body);
-			if (lr.ok && !lr.value.lines.isEmpty())
-				Logger::info(QStringLiteral("Lyric resolved: %1").arg(legacyUrlStr));
 			callback(lr);
 		});
 		QObject::connect(token.data(), &RequestToken::cancelled, second.data(), [second]() {
@@ -1104,9 +1095,6 @@ QSharedPointer<RequestToken> NeteaseProvider::cover(const QUrl &coverUrl, const 
 			callback(Result<QByteArray>::failure(result.error));
 			return;
 		}
-		QByteArray ct = result.value.headers.value("Content-Type");
-		if (!ct.isEmpty())
-			Logger::debug(QStringLiteral("Cover Content-Type: %1").arg(QString::fromUtf8(ct)));
 		callback(Result<QByteArray>::success(result.value.body));
 	});
 }
@@ -1943,7 +1931,6 @@ Result<LoginQrCheck> NeteaseProvider::parseLoginQrCheck(const QByteArray &body) 
 
 Result<UserProfile> NeteaseProvider::parseLoginResult(const QByteArray &body) const
 {
-	Logger::info(QStringLiteral("Login response: %1").arg(QString::fromUtf8(body)));
 	QJsonParseError err{};
 	QJsonDocument doc = QJsonDocument::fromJson(body, &err);
 	if (err.error != QJsonParseError::NoError || !doc.isObject())
@@ -2103,6 +2090,49 @@ QSharedPointer<RequestToken> NeteaseProvider::captchaVerify(const QString &phone
 		else
 			callback(Result<bool>::failure({ErrorCategory::Auth, -1, QStringLiteral("Verification failed")}));
 	});
+}
+
+QSharedPointer<RequestToken> NeteaseProvider::userPlaylist(const QString &uid, int limit, int offset, const UserPlaylistCallback &callback)
+{
+	HttpRequestOptions opts;
+	opts.url = buildUrl(QStringLiteral("/user/playlist"), {{QStringLiteral("uid"), uid}, {QStringLiteral("limit"), QString::number(limit > 0 ? limit : 30)}, {QStringLiteral("offset"), QString::number(offset > 0 ? offset : 0)}});
+	return client->sendWithRetry(opts, 2, 500, [this, callback](Result<HttpResponse> result) {
+		if (!result.ok)
+		{
+			callback(Result<QList<PlaylistMeta>>::failure(result.error));
+			return;
+		}
+		callback(parseUserPlaylist(result.value.body));
+	});
+}
+
+Result<QList<PlaylistMeta>> NeteaseProvider::parseUserPlaylist(const QByteArray &body) const
+{
+	QJsonParseError err{};
+	QJsonDocument doc = QJsonDocument::fromJson(body, &err);
+	if (err.error != QJsonParseError::NoError || !doc.isObject())
+	{
+		Error e;
+		e.category = ErrorCategory::Parser;
+		e.code = -1;
+		e.message = QStringLiteral("Parse user playlist response failed");
+		return Result<QList<PlaylistMeta>>::failure(e);
+	}
+	QJsonObject root = doc.object();
+	QJsonArray playlistArr = root.value(QStringLiteral("playlist")).toArray();
+	QList<PlaylistMeta> playlists;
+	for (const QJsonValue &v : playlistArr)
+	{
+		QJsonObject o = v.toObject();
+		PlaylistMeta p;
+		p.id = o.value(QStringLiteral("id")).toVariant().toString();
+		p.name = o.value(QStringLiteral("name")).toString();
+		p.coverUrl = QUrl(o.value(QStringLiteral("coverImgUrl")).toString());
+		p.description = o.value(QStringLiteral("description")).toString();
+		p.trackCount = o.value(QStringLiteral("trackCount")).toInt();
+		playlists.append(p);
+	}
+	return Result<QList<PlaylistMeta>>::success(playlists);
 }
 
 }

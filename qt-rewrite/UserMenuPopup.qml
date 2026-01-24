@@ -145,8 +145,6 @@ Popup {
                     if (modelData.action === "logout") {
                         musicController.logout()
                         userMenuPopup.close()
-                    } else {
-                        console.log("Menu action:", modelData.action)
                     }
                 }
                 

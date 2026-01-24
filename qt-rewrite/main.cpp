@@ -16,8 +16,15 @@ int main(int argc, char *argv[])
 	QCoreApplication::setOrganizationName("I-love-you");
 	QCoreApplication::setApplicationName("QtRewrite");
 
-	// 初始化日志系统，默认使用 Debug 级别，便于早期调试
-	App::Logger::init(App::Logger::Level::Debug);
+	// 初始化日志系统，默认使用 Info 级别，支持 --debug 参数开启调试日志
+	App::Logger::Level logLevel = App::Logger::Level::Info;
+	for (int i = 1; i < argc; ++i) {
+		if (QString::fromLocal8Bit(argv[i]) == "--debug") {
+			logLevel = App::Logger::Level::Debug;
+			break;
+		}
+	}
+	App::Logger::init(logLevel);
 	App::Logger::info("Application starting");
 
 	// 创建 GUI 应用对象

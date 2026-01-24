@@ -21,6 +21,17 @@ QVariant SongListModel::data(const QModelIndex &index, int role) const
 	if (!index.isValid() || index.row() < 0 || index.row() >= m_songs.size())
 		return {};
 	const Song &s = m_songs.at(index.row());
+	
+	// Lazy load check
+	if (s.id.isEmpty()) {
+		const_cast<SongListModel*>(this)->rowRequested(index.row());
+		if (role == NameRole) return QStringLiteral("Loading...");
+		if (role == IsLoadedRole) return false;
+		if (role == ArtistsRole || role == AlbumRole || role == CoverUrlRole) return QString();
+		if (role == DurationRole) return 0;
+		return {};
+	}
+
 	switch (role)
 	{
 	case IdRole:
@@ -43,6 +54,8 @@ QVariant SongListModel::data(const QModelIndex &index, int role) const
 		return static_cast<qint64>(s.durationMs);
 	case CoverUrlRole:
 		return s.album.coverUrl;
+	case IsLoadedRole:
+		return !s.id.isEmpty();
 	default:
 		return {};
 	}
@@ -59,6 +72,7 @@ QHash<int, QByteArray> SongListModel::roleNames() const
 	roles[AlbumRole] = "album";
 	roles[DurationRole] = "duration";
 	roles[CoverUrlRole] = "coverUrl";
+	roles[IsLoadedRole] = "isLoaded";
 	return roles;
 }
 
@@ -126,6 +140,59 @@ void SongListModel::clear()
     beginResetModel();
     m_songs.clear();
     endResetModel();
+}
+
+void SongListModel::move(int from, int to)
+{
+    if (from < 0 || from >= m_songs.size() || to < 0 || to >= m_songs.size() || from == to)
+        return;
+
+    // Adjust destination index for beginMoveRows
+    // If moving down (from < to), items shift up, so insertion point is to + 1
+    int dest = (to > from) ? (to + 1) : to;
+    
+    if (beginMoveRows(QModelIndex(), from, from, QModelIndex(), dest)) {
+        m_songs.move(from, to);
+        endMoveRows();
+        emit itemMoved(from, to);
+    }
+}
+
+void SongListModel::setTotalCount(int count)
+{
+	beginResetModel();
+	m_songs.clear();
+	if (count > 0)
+		m_songs.resize(count);
+	endResetModel();
+}
+
+void SongListModel::updateRange(int start, const QList<Song> &songs)
+{
+	if (start < 0 || start + songs.size() > m_songs.size())
+		return;
+	for (int i = 0; i < songs.size(); ++i)
+	{
+		m_songs[start + i] = songs.at(i);
+	}
+	emit dataChanged(index(start), index(start + songs.size() - 1));
+}
+
+void SongListModel::clearRange(int start, int count)
+{
+    if (start < 0 || count <= 0 || start + count > m_songs.size())
+        return;
+    for(int i=0; i<count; ++i) {
+        m_songs[start + i] = Song(); // Reset to empty
+    }
+    emit dataChanged(index(start), index(start + count - 1));
+}
+
+bool SongListModel::isLoaded(int row) const
+{
+	if (row < 0 || row >= m_songs.size())
+		return false;
+	return !m_songs.at(row).id.isEmpty();
 }
 
 }

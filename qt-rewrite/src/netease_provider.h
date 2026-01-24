@@ -21,6 +21,8 @@ class NeteaseProvider : public IProvider
 public:
 	explicit NeteaseProvider(HttpClient *httpClient, const QUrl &baseUrl, QObject *parent = nullptr);
 
+	using UserPlaylistCallback = std::function<void(Result<QList<PlaylistMeta>>)>;
+
 	// IProvider 接口实现
 	QString id() const override;
 	QString displayName() const override;
@@ -28,6 +30,7 @@ public:
 	bool supportsCover() const override;
 	bool supportsPlaylistDetail() const override;
 	bool supportsPlaylistTracks() const override;
+	bool supportsUserPlaylist() const override { return true; }
 
 	QSharedPointer<RequestToken> search(const QString &keyword, int limit, const SearchCallback &callback) override;
 	QSharedPointer<RequestToken> songDetail(const QString &songId, const SongDetailCallback &callback) override;
@@ -36,8 +39,9 @@ public:
 	QSharedPointer<RequestToken> cover(const QUrl &coverUrl, const CoverCallback &callback) override;
 	QSharedPointer<RequestToken> playlistDetail(const QString &playlistId, const PlaylistDetailCallback &callback) override;
 	QSharedPointer<RequestToken> playlistTracks(const QString &playlistId, int limit, int offset, const PlaylistTracksCallback &callback) override;
+	QSharedPointer<RequestToken> userPlaylist(const QString &uid, int limit, int offset, const UserPlaylistCallback &callback);
 
-	using LoginQrKeyCallback = std::function<void(Result<LoginQrKey>)>;
+	using LoginQrKeyCallback = std::function<void(Result<LoginQrKey>)>; 
 	using LoginQrCreateCallback = std::function<void(Result<LoginQrCreate>)>;
 	using LoginQrCheckCallback = std::function<void(Result<LoginQrCheck>)>;
 	using LoginCallback = std::function<void(Result<UserProfile>)>;
@@ -73,6 +77,7 @@ private:
 	Result<LoginQrCreate> parseLoginQrCreate(const QByteArray &body) const;
 	Result<LoginQrCheck> parseLoginQrCheck(const QByteArray &body) const;
 	Result<UserProfile> parseLoginResult(const QByteArray &body) const;
+	Result<QList<PlaylistMeta>> parseUserPlaylist(const QByteArray &body) const;
 };
 
 }

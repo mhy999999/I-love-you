@@ -387,22 +387,59 @@ MusicController::MusicController(QObject *parent)
 	}
 
 	m_player.setAudioOutput(new QAudioOutput(this));
+	
+	settings.beginGroup(QStringLiteral("set"));
+	int savedVolume = settings.value(QStringLiteral("volume"), 50).toInt();
+	settings.endGroup();
+	m_player.audioOutput()->setVolume(savedVolume / 100.0);
+
 	QObject::connect(&m_player, &QMediaPlayer::playbackStateChanged, this, [this](QMediaPlayer::PlaybackState state) {
 		setPlaying(state == QMediaPlayer::PlayingState);
 	});
 	QObject::connect(&m_player, &QMediaPlayer::mediaStatusChanged, this, [this](QMediaPlayer::MediaStatus status) {
 		if (status == QMediaPlayer::EndOfMedia)
-			handleMediaFinished();
+			playNextInternal(false);
 	});
 	QObject::connect(&m_player, &QMediaPlayer::positionChanged, this, [this](qint64 pos) {
-		setPositionMs(pos);
+		m_positionMs = pos;
+		emit positionMsChanged();
 		updateCurrentLyricIndexByPosition(pos);
 	});
 	QObject::connect(&m_player, &QMediaPlayer::durationChanged, this, [this](qint64 dur) {
-		setDurationMs(dur);
+		m_durationMs = dur;
+		emit durationMsChanged();
+	});
+	QObject::connect(&m_player, &QMediaPlayer::errorOccurred, this, [this](QMediaPlayer::Error error, const QString &errorString) {
+		Logger::error(QStringLiteral("Player error: %1 - %2").arg(error).arg(errorString));
+		emit errorOccurred(errorString);
 	});
 
+	connect(&m_playlistModel, &SongListModel::rowRequested, this, &MusicController::onPlaylistRowRequested);
+
 	loadQueueFromSettings();
+
+	connect(this, &MusicController::loginSuccess, this, &MusicController::loadUserPlaylist);
+
+    connect(&m_queueModel, &SongListModel::itemMoved, this, [this](int from, int to) {
+        if (m_currentSongIndex < 0) {
+            saveQueueToSettings();
+            return;
+        }
+        
+        if (from == m_currentSongIndex) {
+            m_currentSongIndex = to;
+            emit currentSongIndexChanged();
+        } else {
+            if (from < m_currentSongIndex && to >= m_currentSongIndex) {
+                m_currentSongIndex--;
+                emit currentSongIndexChanged();
+            } else if (from > m_currentSongIndex && to <= m_currentSongIndex) {
+                m_currentSongIndex++;
+                emit currentSongIndexChanged();
+            }
+        }
+        saveQueueToSettings();
+    });
 }
 
 MusicController::~MusicController()
@@ -441,6 +478,11 @@ SongListModel *MusicController::playlistModel()
 SongListModel *MusicController::queueModel() const
 {
 	return const_cast<SongListModel*>(&m_queueModel);
+}
+
+PlaylistListModel *MusicController::userPlaylistModel()
+{
+	return &m_userPlaylistModel;
 }
 
 bool MusicController::loading() const
@@ -573,6 +615,12 @@ void MusicController::setVolume(int v)
 		return;
 	double clamped = qBound(0, v, 100) / 100.0;
 	m_player.audioOutput()->setVolume(clamped);
+
+	QSettings settings;
+	settings.beginGroup(QStringLiteral("set"));
+	settings.setValue(QStringLiteral("volume"), static_cast<int>(clamped * 100));
+	settings.endGroup();
+
 	emit volumeChanged();
 }
 
@@ -630,7 +678,6 @@ void MusicController::setCoverSource(const QUrl &url)
 	if (m_coverSource == url)
 		return;
 	m_coverSource = url;
-	Logger::info(QStringLiteral("Cover source: %1").arg(m_coverSource.toString()));
 	emit coverSourceChanged();
 }
 
@@ -652,10 +699,25 @@ void MusicController::setPlaylistName(const QString &name)
 
 void MusicController::setPlaylistHasMore(bool v)
 {
-	if (m_playlistHasMore == v)
-		return;
-	m_playlistHasMore = v;
-	emit playlistHasMoreChanged();
+	if (m_playlistHasMore != v)
+	{
+		m_playlistHasMore = v;
+		emit playlistHasMoreChanged();
+	}
+}
+
+void MusicController::setPlaylistPageSize(int size)
+{
+    if (size < 5) size = 5; // 最小安全值
+    if (m_playlistPageSize != size) {
+        m_playlistPageSize = size;
+        emit playlistPageSizeChanged();
+    }
+}
+
+int MusicController::playlistPageSize() const
+{
+    return m_playlistPageSize;
 }
 
 void MusicController::setCurrentSongTitle(const QString &title)
@@ -821,7 +883,6 @@ void MusicController::requestCover(const QUrl &coverUrl)
 {
 	// 记录本次请求序号，避免快速切歌时旧封面覆盖新封面
 	quint64 requestId = ++m_coverRequestId;
-	Logger::info(QStringLiteral("Request cover: %1").arg(coverUrl.toString()));
 	if (!coverUrl.isValid() || coverUrl.isEmpty())
 	{
 		setCoverSource({});
@@ -834,7 +895,6 @@ void MusicController::requestCover(const QUrl &coverUrl)
 		if (requestId != m_coverRequestId)
 			return;
 		QUrl u = imageCache.resolveExistingFileUrlForKey(key, exts);
-		Logger::info(QStringLiteral("Cover cache hit: %1").arg(u.toString()));
 		setCoverSource(u);
 		return;
 	}
@@ -884,7 +944,6 @@ void MusicController::requestCover(const QUrl &coverUrl)
 				{
 					imageCache.putWithExt(key, out.data(), QStringLiteral("png"));
 					QUrl u = imageCache.fileUrlForKeyExt(key, QStringLiteral("png"));
-					Logger::info(QStringLiteral("Cover saved as PNG: %1").arg(u.toString()));
 					setCoverSource(u);
 					return;
 				}
@@ -896,7 +955,6 @@ void MusicController::requestCover(const QUrl &coverUrl)
 		}
 		imageCache.putWithExt(key, result.value, ext);
 		QUrl u = imageCache.fileUrlForKeyExt(key, ext);
-		Logger::info(QStringLiteral("Cover saved: %1").arg(u.toString()));
 		setCoverSource(u);
 	});
 }
@@ -915,7 +973,6 @@ void MusicController::search(const QString &keyword)
 		return;
 	// 记录本次搜索序号，保证只展示最新一次搜索结果
 	quint64 requestId = ++m_searchRequestId;
-	Logger::info(QStringLiteral("Search: %1").arg(keyword.trimmed()));
 	if (searchToken)
 		searchToken->cancel();
 	setLoading(true);
@@ -929,7 +986,6 @@ void MusicController::search(const QString &keyword)
 			emit errorOccurred(result.error.message);
 			return;
 		}
-		Logger::info(QStringLiteral("Search ok: %1 songs").arg(result.value.size()));
 		m_songsModel.setSongs(result.value);
 	});
 }
@@ -955,13 +1011,6 @@ void MusicController::playIndex(int index)
 		artistNames.append(a.name);
 	setCurrentSongTitle(song.name);
 	setCurrentSongArtists(artistNames.join(QStringLiteral(" / ")));
-	Logger::info(QStringLiteral("Play index %1, provider=%2, songId=%3, title=%4, artists=%5, durationMs=%6")
-				 .arg(index)
-				 .arg(providerId)
-				 .arg(songId)
-				 .arg(song.name)
-				 .arg(artistNames.join(QStringLiteral(" / ")))
-				 .arg(static_cast<qint64>(song.durationMs)));
 	clearLyric();
 	setCoverSource({});
 	if (song.album.coverUrl.isValid() && !song.album.coverUrl.isEmpty())
@@ -970,7 +1019,6 @@ void MusicController::playIndex(int index)
 	}
 	else
 	{
-		Logger::info(QStringLiteral("Cover url missing, fetching song detail for cover"));
 		if (songDetailToken)
 			songDetailToken->cancel();
 		QString prefer = providerId;
@@ -1028,31 +1076,78 @@ void MusicController::loadPlaylist(const QString &playlistId)
 	QString id = playlistId.trimmed();
 	if (id.isEmpty())
 		return;
-	// 记录本次歌单详情请求序号，避免快速切歌单时旧结果覆盖
+
+	// 记录本次歌单详情请求序号
 	quint64 requestId = ++m_playlistDetailRequestId;
 	if (playlistDetailToken)
 		playlistDetailToken->cancel();
-	if (playlistTracksToken)
-		playlistTracksToken->cancel();
 	m_playlistId = id;
-	m_playlistOffset = 0;
-	m_playlistTotal = 0;
-	setPlaylistHasMore(false);
 	setPlaylistLoading(true);
-	m_playlistModel.setSongs({});
+	m_requestedPages.clear();
+	m_playlistPageTokens.clear();
+	m_lastRequestedPage = -1;
+
+
 	playlistDetailToken = providerManager.playlistDetail(id, [this, requestId](Result<PlaylistMeta> result) {
 		if (requestId != m_playlistDetailRequestId)
 			return;
+
+		setPlaylistLoading(false);
 		if (!result.ok)
 		{
-			setPlaylistLoading(false);
 			emit errorOccurred(result.error.message);
 			return;
 		}
+
 		setPlaylistName(result.value.name);
 		m_playlistTotal = result.value.trackCount;
+		m_playlistModel.setTotalCount(m_playlistTotal);
 		requestCover(result.value.coverUrl);
-		loadMorePlaylist();
+		
+		// Load first page
+		loadPlaylistPage(0);
+	});
+}
+
+void MusicController::loadUserPlaylist(const QString &uid)
+{
+	QString targetUid = uid;
+	if (targetUid.isEmpty())
+		targetUid = m_userProfile.userId;
+
+	if (targetUid.isEmpty())
+	{
+		emit errorOccurred(QStringLiteral("User ID is required to load playlist"));
+		return;
+	}
+
+	if (!neteaseProvider)
+	{
+		emit errorOccurred(QStringLiteral("Netease provider not available"));
+		return;
+	}
+
+	if (userPlaylistToken)
+	{
+		userPlaylistToken->cancel();
+		userPlaylistToken.clear();
+	}
+
+	m_userPlaylistRequestId++;
+	quint64 reqId = m_userPlaylistRequestId;
+
+	userPlaylistToken = neteaseProvider->userPlaylist(targetUid, 100, 0, [this, reqId](Result<QList<PlaylistMeta>> result) {
+		if (reqId != m_userPlaylistRequestId)
+			return;
+		userPlaylistToken.clear();
+
+		if (!result.ok)
+		{
+			emit errorOccurred(result.error.message);
+			return;
+		}
+
+		m_userPlaylistModel.setPlaylists(result.value);
 	});
 }
 
@@ -1061,78 +1156,160 @@ void MusicController::adjustLyricOffsetMs(qint64 deltaMs)
 	setLyricOffsetMs(m_lyricOffsetMs + deltaMs);
 }
 
-void MusicController::loadMorePlaylist()
+void MusicController::onPlaylistRowRequested(int index)
 {
-	if (m_playlistId.isEmpty())
-		return;
-	// 记录本次分页请求序号，避免并发翻页导致列表错乱
-	quint64 requestId = ++m_playlistTracksRequestId;
-	if (playlistTracksToken)
-		playlistTracksToken->cancel();
-	setPlaylistLoading(true);
-	int limit = m_playlistLimit > 0 ? m_playlistLimit : 50;
-	int offset = m_playlistOffset;
-	playlistTracksToken = providerManager.playlistTracks(m_playlistId, limit, offset, [this, limit, offset, requestId](Result<PlaylistTracksPage> result) {
-		if (requestId != m_playlistTracksRequestId)
-			return;
-		setPlaylistLoading(false);
-		if (!result.ok)
+	int pageSize = m_playlistPageSize;
+	int page = index / pageSize;
+    
+    // Update last requested page for cleanup logic
+    m_lastRequestedPage = page;
+	
+	if (!m_playlistModel.isLoaded(page * pageSize) && !m_requestedPages.contains(page))
+	{
+		loadPlaylistPage(page);
+	}
+
+	// Prefetch next page
+	int nextPage = page + 1;
+	if (nextPage * pageSize < m_playlistTotal)
+	{
+		if (!m_playlistModel.isLoaded(nextPage * pageSize) && !m_requestedPages.contains(nextPage))
 		{
+			loadPlaylistPage(nextPage);
+		}
+	}
+}
+
+void MusicController::loadPlaylistPage(int page)
+{
+	if (m_playlistId.isEmpty()) return;
+	
+    // Check if this page is already loading
+    if (m_playlistPageTokens.contains(page)) return;
+	
+	m_requestedPages.insert(page);
+	
+	int pageSize = m_playlistPageSize;
+	int limit = pageSize;
+	int offset = page * pageSize;
+	
+    // No global request ID check needed for per-page tokens
+    // Use isFinished to handle potentially synchronous callbacks
+    auto isFinished = QSharedPointer<bool>::create(false);
+	
+	auto token = providerManager.playlistTracks(m_playlistId, limit, offset, [this, page, offset, isFinished](Result<PlaylistTracksPage> result) {
+        *isFinished = true;
+        // Remove token first
+        m_playlistPageTokens.remove(page);
+		m_requestedPages.remove(page);
+		
+		if (!result.ok) {
 			emit errorOccurred(result.error.message);
 			return;
 		}
-		QList<Song> combined = m_playlistModel.songs();
-		combined.append(result.value.songs);
-		m_playlistModel.setSongs(combined);
-		m_playlistOffset = offset + result.value.songs.size();
-		int total = m_playlistTotal > 0 ? m_playlistTotal : result.value.total;
-		setPlaylistHasMore(m_playlistOffset < total);
-	});
-}
+		
+		m_playlistModel.updateRange(offset, result.value.songs);
+		
+		// Unload pages outside of window centered on m_lastRequestedPage
+        // If m_lastRequestedPage is -1 (unlikely), use current page
+        int centerPage = (m_lastRequestedPage >= 0) ? m_lastRequestedPage : page;
 
-void MusicController::importPlaylistToQueue()
-{
-    auto songKey = [](const Song &x) {
-        QString p = x.providerId.isEmpty() ? x.source : x.providerId;
-        return p + QStringLiteral(":") + x.id;
-    };
-    QList<Song> combined = m_queueModel.songs();
-    for (const Song &s : m_playlistModel.songs()) {
-        QString key = songKey(s);
-        bool dup = false;
-        for (const Song &q : combined) {
-            if (songKey(q) == key) { dup = true; break; }
-        }
-        if (!dup) combined.append(s);
+		int pageSize = m_playlistPageSize;
+        // Increase buffer to 2 pages to prevent flickering during fast scroll
+        int buffer = pageSize * 2; 
+        
+		int keepStart = qMax(0, centerPage * pageSize - buffer);
+		int keepEnd = (centerPage + 1) * pageSize + buffer;
+		
+		// Clear before keepStart
+		if (keepStart > 0) {
+			m_playlistModel.clearRange(0, keepStart);
+		}
+		// Clear after keepEnd
+		if (keepEnd < m_playlistTotal) {
+			m_playlistModel.clearRange(keepEnd, m_playlistTotal - keepEnd);
+		}
+	});
+    
+    if (token && !*isFinished) {
+        m_playlistPageTokens.insert(page, token);
     }
-    Logger::info(QStringLiteral("Import playlist to queue, added=%1, totalQueue=%2")
-                 .arg(m_playlistModel.rowCount())
-                 .arg(combined.size()));
-    m_queueModel.setSongs(combined);
-	saveQueueToSettings();
+}
+void MusicController::importPlaylistToQueue(const QString &playlistId, bool clearFirst, const QString &playSongId)
+{
+    QString targetId = playlistId.isEmpty() ? m_playlistId : playlistId;
+    if (targetId.isEmpty()) return;
+
+    if (importToken)
+        importToken->cancel();
+
+    // Import first 1000 tracks (sufficient for most)
+    // To support more, we'd need recursive fetching
+    int limit = 1000; 
+    int offset = 0;
+
+    importToken = providerManager.playlistTracks(targetId, limit, offset, [this, clearFirst, playSongId](Result<PlaylistTracksPage> result) {
+        importToken.clear();
+        if (!result.ok) {
+            emit errorOccurred("Import failed: " + result.error.message);
+            return;
+        }
+
+        QList<Song> songs = result.value.songs;
+        if (songs.isEmpty()) {
+             emit errorOccurred("Playlist is empty");
+             return;
+        }
+
+        auto songKey = [](const Song &x) {
+            QString p = x.providerId.isEmpty() ? x.source : x.providerId;
+            return p + QStringLiteral(":") + x.id;
+        };
+        
+        QList<Song> queue;
+        QSet<QString> existingKeys;
+
+        if (!clearFirst) {
+            queue = m_queueModel.songs();
+            for (const Song &s : queue) {
+                existingKeys.insert(songKey(s));
+            }
+        }
+        
+        int added = 0;
+        for (const Song &s : songs) {
+            if (s.id.isEmpty()) continue;
+            QString key = songKey(s);
+            if (!existingKeys.contains(key)) {
+                queue.append(s);
+                existingKeys.insert(key);
+                added++;
+            }
+        }
+        
+        if (added > 0 || clearFirst) {
+            m_queueModel.setSongs(queue);
+            saveQueueToSettings();
+        }
+
+        if (!playSongId.isEmpty()) {
+            for (int i = 0; i < queue.size(); ++i) {
+                if (queue.at(i).id == playSongId) {
+                    playIndex(i);
+                    return;
+                }
+            }
+        }
+    });
 }
 
 void MusicController::playPlaylistTrack(int index)
 {
-	if (index < 0 || index >= m_playlistModel.rowCount())
+	if (index < 0 || index >= m_playlistModel.songs().size())
 		return;
-    auto songKey = [](const Song &x) {
-        QString p = x.providerId.isEmpty() ? x.source : x.providerId;
-        return p + QStringLiteral(":") + x.id;
-    };
+
     const Song &s = m_playlistModel.songs().at(index);
-    Logger::info(QStringLiteral("Play playlist track index=%1, title=%2").arg(index).arg(s.name));
-    QString key = songKey(s);
-    const QList<Song> &queue = m_queueModel.songs();
-    for (int i = 0; i < queue.size(); ++i) {
-        if (songKey(queue.at(i)) == key) { playIndex(i); return; }
-    }
-    importPlaylistToQueue();
-    // 新增后位置发生变化：重新在队列里查找并播放
-    const QList<Song> &queue2 = m_queueModel.songs();
-    for (int i = 0; i < queue2.size(); ++i) {
-        if (songKey(queue2.at(i)) == key) { playIndex(i); return; }
-    }
+    importPlaylistToQueue(QString(), true, s.id);
 }
 
 void MusicController::seek(qint64 positionMs)
@@ -1260,7 +1437,6 @@ void MusicController::queuePlayFromSearchIndex(int index)
 		return;
 	const QList<Song> &src = m_songsModel.songs();
 	Song s = src.at(index);
-    Logger::info(QStringLiteral("Queue play from search index: %1, title=%2").arg(index).arg(s.name));
     auto songKey = [](const Song &x) {
         QString p = x.providerId.isEmpty() ? x.source : x.providerId;
         return p + QStringLiteral(":") + x.id;
@@ -1272,12 +1448,10 @@ void MusicController::queuePlayFromSearchIndex(int index)
         if (songKey(queue.at(i)) == key) { existing = i; break; }
     }
     if (existing >= 0) {
-        Logger::info(QStringLiteral("Song already in queue at %1, jumping").arg(existing));
         playIndex(existing);
         return;
     }
     m_queueModel.append(s);
-    Logger::info(QStringLiteral("Song appended to queue, newIndex=%1").arg(m_queueModel.rowCount() - 1));
     saveQueueToSettings();
     playIndex(m_queueModel.rowCount() - 1);
 }
@@ -1288,7 +1462,6 @@ void MusicController::queueAddFromSearchIndex(int index, bool next)
 		return;
 	const QList<Song> &src = m_songsModel.songs();
 	Song s = src.at(index);
-    Logger::info(QStringLiteral("Queue add from search index: %1, next=%2, title=%3").arg(index).arg(next).arg(s.name));
     auto songKey = [](const Song &x) {
         QString p = x.providerId.isEmpty() ? x.source : x.providerId;
         return p + QStringLiteral(":") + x.id;
@@ -1300,7 +1473,6 @@ void MusicController::queueAddFromSearchIndex(int index, bool next)
         if (songKey(queue.at(i)) == key) { existing = i; break; }
     }
     if (existing >= 0) {
-        Logger::info(QStringLiteral("Song already in queue at %1, jumping").arg(existing));
         playIndex(existing);
         return;
     }
@@ -1308,7 +1480,6 @@ void MusicController::queueAddFromSearchIndex(int index, bool next)
 	if (next && m_currentSongIndex >= 0)
 		insertPos = qMin(m_currentSongIndex + 1, m_queueModel.rowCount());
 	m_queueModel.insert(insertPos, s);
-    Logger::info(QStringLiteral("Song inserted into queue at %1").arg(insertPos));
 	saveQueueToSettings();
 }
 

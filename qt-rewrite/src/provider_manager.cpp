@@ -356,7 +356,6 @@ QSharedPointer<RequestToken> ProviderManager::cover(const QUrl &coverUrl, const 
 			return;
 		}
 		IProvider *provider = candidates.at(state->index);
-		Logger::info(QStringLiteral("Cover using provider: %1").arg(provider->id()));
 		state->currentToken = provider->cover(coverUrl, [this, callback, masterToken, state, nextFn, candidates](Result<QByteArray> result) {
 			if (masterToken->isCancelled())
 				return;

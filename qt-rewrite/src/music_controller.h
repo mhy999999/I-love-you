@@ -6,11 +6,14 @@
 #include <QPointer>
 #include <QProcess>
 #include <QUrl>
+#include <QSet>
+#include <QMap>
 
 #include "core_types.h"
 #include "disk_cache.h"
 #include "http_client.h"
 #include "lyric_list_model.h"
+#include "playlist_list_model.h"
 #include "gdstudio_provider.h"
 #include "netease_provider.h"
 #include "provider_manager.h"
@@ -40,6 +43,7 @@ class MusicController : public QObject
 	Q_PROPERTY(QUrl coverSource READ coverSource NOTIFY coverSourceChanged)
 	Q_PROPERTY(SongListModel *playlistModel READ playlistModel CONSTANT)
 	Q_PROPERTY(SongListModel *queueModel READ queueModel CONSTANT)
+	Q_PROPERTY(PlaylistListModel *userPlaylistModel READ userPlaylistModel CONSTANT)
 	Q_PROPERTY(bool playlistLoading READ playlistLoading NOTIFY playlistLoadingChanged)
 	Q_PROPERTY(QString playlistName READ playlistName NOTIFY playlistNameChanged)
 	Q_PROPERTY(bool playlistHasMore READ playlistHasMore NOTIFY playlistHasMoreChanged)
@@ -51,6 +55,7 @@ class MusicController : public QObject
 	Q_PROPERTY(QUrl avatarUrl READ avatarUrl NOTIFY userProfileChanged)
 	Q_PROPERTY(QString signature READ signature NOTIFY userProfileChanged)
 	Q_PROPERTY(int vipType READ vipType NOTIFY userProfileChanged)
+    Q_PROPERTY(int playlistPageSize READ playlistPageSize WRITE setPlaylistPageSize NOTIFY playlistPageSizeChanged)
 
 public:
 	enum PlaybackMode
@@ -67,6 +72,8 @@ public:
 
 	int playbackMode() const;
 	void setPlaybackMode(int mode);
+    
+    int playlistPageSize() const;
 
 	SongListModel *songsModel();
 	LyricListModel *lyricModel();
@@ -86,6 +93,7 @@ public:
 	QUrl coverSource() const;
 	SongListModel *playlistModel();
 	SongListModel *queueModel() const;
+	PlaylistListModel *userPlaylistModel();
 	bool playlistLoading() const;
 	QString playlistName() const;
 	bool playlistHasMore() const;
@@ -109,8 +117,7 @@ public:
 	Q_INVOKABLE void stop();
 	Q_INVOKABLE void adjustLyricOffsetMs(qint64 deltaMs);
 	Q_INVOKABLE void loadPlaylist(const QString &playlistId);
-	Q_INVOKABLE void loadMorePlaylist();
-	Q_INVOKABLE void importPlaylistToQueue();
+	Q_INVOKABLE void importPlaylistToQueue(const QString &playlistId = QString(), bool clearFirst = false, const QString &playSongId = QString());
 	Q_INVOKABLE void playPlaylistTrack(int index);
 	Q_INVOKABLE void queuePlayFromSearchIndex(int index);
 	Q_INVOKABLE void queueAddFromSearchIndex(int index, bool next);
@@ -128,6 +135,7 @@ public:
 	Q_INVOKABLE void logout();
 	Q_INVOKABLE void checkLoginStatus();
 	Q_INVOKABLE void playlistRemoveAt(int index);
+	Q_INVOKABLE void loadUserPlaylist(const QString &uid = QString());
 
 signals:
 	void loadingChanged();
@@ -147,6 +155,7 @@ signals:
 	void currentSongTitleChanged();
 	void currentSongArtistsChanged();
 	void playbackModeChanged();
+    void playlistPageSizeChanged();
 	void loggedInChanged();
 	void userProfileChanged();
 	void loginQrKeyReceived(const QString &key);
@@ -166,6 +175,7 @@ private:
 	LyricListModel m_lyricModel;
 	SongListModel m_playlistModel;
 	SongListModel m_queueModel;
+	PlaylistListModel m_userPlaylistModel;
 	QMediaPlayer m_player;
 	DiskCache imageCache;
 	DiskCache lyricCache;
@@ -176,7 +186,9 @@ private:
 	QSharedPointer<RequestToken> songDetailToken;
 	QSharedPointer<RequestToken> playlistDetailToken;
 	QSharedPointer<RequestToken> playlistTracksToken;
+	QSharedPointer<RequestToken> userPlaylistToken;
 	QSharedPointer<RequestToken> loginToken;
+	QSharedPointer<RequestToken> importToken;
 	QProcess *musicApiProcess = nullptr;
 	bool m_loading = false;
 	QUrl m_currentUrl;
@@ -188,6 +200,7 @@ private:
 	quint64 m_coverRequestId = 0;
 	quint64 m_playlistDetailRequestId = 0;
 	quint64 m_playlistTracksRequestId = 0;
+	quint64 m_userPlaylistRequestId = 0;
 	qint64 m_positionMs = 0;
 	qint64 m_durationMs = 0;
 	int m_currentSongIndex = -1;
@@ -200,6 +213,7 @@ private:
 	int m_playlistTotal = 0;
 	int m_playlistOffset = 0;
 	int m_playlistLimit = 50;
+    int m_playlistPageSize = 50;
 	QString m_currentSongTitle;
 	QString m_currentSongArtists;
 	int m_playbackMode = Sequence;
@@ -216,6 +230,7 @@ private:
 	void setPlaylistLoading(bool v);
 	void setPlaylistName(const QString &name);
 	void setPlaylistHasMore(bool v);
+	Q_INVOKABLE void setPlaylistPageSize(int size);
 	void setCurrentSongTitle(const QString &title);
 	void setCurrentSongArtists(const QString &artists);
 	void updateCurrentLyricIndexByPosition(qint64 posMs);
@@ -232,6 +247,15 @@ private:
 	// 队列持久化
 	void saveQueueToSettings();
 	void loadQueueFromSettings();
+
+    // Lazy loading
+    QSet<int> m_requestedPages;
+    int m_lastRequestedPage = -1;
+    QMap<int, QSharedPointer<RequestToken>> m_playlistPageTokens;
+    void loadPlaylistPage(int page);
+
+private slots:
+    void onPlaylistRowRequested(int index);
 };
 
 }

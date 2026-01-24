@@ -162,7 +162,6 @@ ApplicationWindow {
 							fillMode: Image.PreserveAspectCrop
 							mipmap: true
 							cache: true
-							onStatusChanged: console.log("Avatar status:", status, source)
 						}
 						
 						// Temporary disable MultiEffect to debug
@@ -556,7 +555,6 @@ ApplicationWindow {
                                 onOpened: if (logActive) {
                                     var TLx = x; var TLy = y
                                     var dxTL = TLx - clickX; var dyTL = TLy - clickY
-                                    console.log("[Popup] Opened at (", x, ",", y, ") Size=(", width, ",", height, ") Click=(", clickX, ",", clickY, ") DeltaTL=(", dxTL, ",", dyTL, ")")
                                 }
                                 onClosed: logActive = false
                                 function openFor(index, title, artists, coverUrl, originItem, mouse, type) {
@@ -584,7 +582,6 @@ ApplicationWindow {
                                     }
                                     targetX = tX
                                     targetY = tY
-                                    console.log("[Popup] click=(", clickX, ",", clickY, ") anchorDecide left=", anchorLeft, " bottom=", anchorBottom)
                                     logActive = true
                                     open()
                                 }
@@ -595,6 +592,7 @@ ApplicationWindow {
 								anchors.margins: 8
 								model: musicController ? musicController.songsModel : null
 								clip: true
+								ScrollBar.vertical: ScrollBar { active: true }
 								delegate: Rectangle {
 									width: listView.width
 									height: 56
@@ -652,7 +650,6 @@ ApplicationWindow {
 										onExited: hovered = false
                                         onClicked: function(mouse){
                                             if (mouse.button === Qt.LeftButton) {
-                                                console.log("[SearchItem] left-click index=", index)
                                                 if (musicController) musicController.queuePlayFromSearchIndex(index)
                                                 currentPlaylistIndex = -1
                                             }
@@ -660,7 +657,6 @@ ApplicationWindow {
                                         onPressed: function(mouse){
                                             if (mouse.button === Qt.RightButton) {
                                                 var cover = coverUrl
-                                                console.log("[SearchItem] right-click index=", index, "local=(", mouse.x, ",", mouse.y, ") scene=", (mouse.scenePosition ? (mouse.scenePosition.x + "," + mouse.scenePosition.y) : "n/a"))
                                                 songActionPopup.openFor(index, title, artists, cover, searchItemMouse, mouse)
                                             }
                                         }
@@ -728,139 +724,302 @@ ApplicationWindow {
 			Item {
 				Layout.fillWidth: true
 				Layout.fillHeight: true
-				ColumnLayout {
-					anchors.fill: parent
-					spacing: 12
 
-					BusyIndicator {
-						running: musicController && musicController.playlistLoading
-						visible: running
-						Layout.alignment: Qt.AlignHCenter
+				RowLayout {
+					anchors.fill: parent
+					spacing: 0
+
+					// Left Panel: User Playlists
+					Frame {
+						Layout.preferredWidth: 260
+						Layout.fillHeight: true
+						background: Rectangle { color: "#f9fafb"; border.width: 0; }
+						
+						ColumnLayout {
+							anchors.fill: parent
+							anchors.margins: 0
+							spacing: 0
+							
+							Rectangle {
+								Layout.fillWidth: true
+								Layout.preferredHeight: 48
+								color: "transparent"
+								Text {
+									text: qsTr("我的歌单")
+									anchors.left: parent.left
+									anchors.leftMargin: 16
+									anchors.verticalCenter: parent.verticalCenter
+									font.pixelSize: 16
+									font.weight: Font.DemiBold
+									color: "#111827"
+								}
+								Button {
+									text: qsTr("刷新")
+									anchors.right: parent.right
+									anchors.rightMargin: 8
+									anchors.verticalCenter: parent.verticalCenter
+									flat: true
+									onClicked: if (musicController) musicController.loadUserPlaylist()
+								}
+							}
+							
+							ListView {
+								id: userPlaylistView
+								Layout.fillWidth: true
+								Layout.fillHeight: true
+								clip: true
+								model: musicController ? musicController.userPlaylistModel : null
+								ScrollBar.vertical: ScrollBar { }
+								delegate: Item {
+									width: userPlaylistView.width
+									height: 56
+									Rectangle {
+										anchors.fill: parent
+										anchors.margins: 4
+										radius: 8
+										color: hoverHandler.hovered ? "#e5e7eb" : "transparent"
+										
+										HoverHandler { id: hoverHandler }
+
+										MouseArea {
+											anchors.fill: parent
+											onClicked: {
+												if (musicController) musicController.loadPlaylist(model.id)
+											}
+										}
+										
+										RowLayout {
+											anchors.fill: parent
+											anchors.leftMargin: 8
+											anchors.rightMargin: 8
+											spacing: 10
+											
+											Image {
+												source: model.coverUrl
+												Layout.preferredWidth: 40
+												Layout.preferredHeight: 40
+												fillMode: Image.PreserveAspectCrop
+												layer.enabled: true
+												layer.effect: MultiEffect {
+													maskEnabled: true
+													maskSource: Rectangle { width: 40; height: 40; radius: 4; visible: false }
+												}
+											}
+											
+											ColumnLayout {
+												Layout.fillWidth: true
+												spacing: 2
+												Text {
+													text: model.name
+													elide: Text.ElideRight
+													Layout.fillWidth: true
+													color: "#111827"
+													font.pixelSize: 13
+													font.weight: Font.Medium
+												}
+												Text {
+													text: model.trackCount + qsTr("首")
+													color: "#6b7280"
+													font.pixelSize: 11
+												}
+											}
+
+											Button {
+												text: qsTr("导入")
+												Layout.preferredHeight: 24
+												Layout.preferredWidth: 48
+												font.pixelSize: 11
+												flat: true
+												background: Rectangle {
+													color: parent.down ? "#d1d5db" : (parent.hovered ? "#e5e7eb" : "transparent")
+													radius: 4
+													border.color: "#d1d5db"
+												}
+												onClicked: {
+													if (musicController) musicController.importPlaylistToQueue(model.id)
+												}
+											}
+										}
+									}
+								}
+							}
+							
+							Rectangle {
+								Layout.fillWidth: true
+								height: 1
+								color: "#e5e7eb"
+							}
+						}
+						
+						Rectangle {
+							anchors.right: parent.right
+							anchors.top: parent.top
+							anchors.bottom: parent.bottom
+							width: 1
+							color: "#e5e7eb"
+						}
 					}
 
-					RowLayout {
-						spacing: 8
-						Item {
-							Layout.fillWidth: true
-							implicitHeight: 34
-							TextField {
-								id: playlistInput
-								anchors.fill: parent
-								placeholderText: qsTr("输入歌单ID")
-								font.pixelSize: 14
+					// Right Panel: Playlist Content
+					Item {
+						Layout.fillWidth: true
+						Layout.fillHeight: true
+						
+						ColumnLayout {
+							anchors.fill: parent
+							anchors.margins: 16
+							spacing: 12
+
+							BusyIndicator {
+								running: musicController && musicController.playlistLoading
+								visible: running
+								Layout.alignment: Qt.AlignHCenter
+							}
+
+							Text {
+								text: musicController ? musicController.playlistName : ""
 								color: "#111827"
+								font.pixelSize: 18
+								elide: Text.ElideRight
+								Layout.fillWidth: true
+							}
+
+							Frame {
+								Layout.fillWidth: true
+								Layout.fillHeight: true
 								background: Rectangle {
-									radius: 6
 									color: "#ffffff"
+									radius: 16
 									border.color: "#cbd5e1"
 									border.width: 1
 								}
-								onAccepted: if (musicController) musicController.loadPlaylist(text)
-							}
-							Text {
-								text: playlistInput.placeholderText
-								color: "#6b7280"
-								anchors.verticalCenter: parent.verticalCenter
-								anchors.left: parent.left
-								anchors.leftMargin: 8
-								visible: playlistInput.text.length === 0
-								elide: Text.ElideRight
-							}
-						}
-						Button {
-							text: qsTr("加载")
-							onClicked: if (musicController) musicController.loadPlaylist(playlistInput.text)
-						}
-						Button {
-							text: qsTr("更多")
-							enabled: musicController && musicController.playlistHasMore
-							onClicked: if (musicController) musicController.loadMorePlaylist()
-						}
-						Button {
-							text: qsTr("导入队列")
-							onClicked: if (musicController) musicController.importPlaylistToQueue()
-						}
-					}
-
-					Text {
-						text: musicController ? musicController.playlistName : ""
-						color: "#111827"
-						font.pixelSize: 18
-						elide: Text.ElideRight
-						Layout.fillWidth: true
-					}
-
-					Frame {
-						Layout.fillWidth: true
-						Layout.fillHeight: true
-						background: Rectangle {
-							color: "#ffffff"
-							radius: 16
-							border.color: "#cbd5e1"
-							border.width: 1
-						}
-						ListView {
-							id: playlistView
-							anchors.fill: parent
-							anchors.margins: 8
-							model: musicController ? musicController.playlistModel : null
-							clip: true
-							delegate: Rectangle {
-								width: playlistView.width
-								height: 56
-								radius: 10
-								property bool current: index === currentPlaylistIndex
-								property bool hovered: false
-								color: current ? "#dcfce7" : (hovered ? "#f1f5f9" : "#ffffff")
-								border.color: current ? "#22c55e" : "transparent"
-
-								RowLayout {
+								ListView {
+									id: playlistView
 									anchors.fill: parent
-									anchors.margins: 12
-									spacing: 10
-
-									Text {
-										text: index + 1
-										color: "#9ca3af"
-										font.pixelSize: 13
-										horizontalAlignment: Text.AlignHCenter
-										verticalAlignment: Text.AlignVCenter
-										Layout.preferredWidth: 32
-									}
-
-									Text {
-										text: title
-										color: "#111827"
-										font.pixelSize: 14
-										elide: Text.ElideRight
-										Layout.fillWidth: true
-									}
-
-									Text {
-										text: artists
-										color: "#6b7280"
-										font.pixelSize: 13
-										elide: Text.ElideRight
-										Layout.preferredWidth: 220
-									}
-								}
-
-								MouseArea {
-									anchors.fill: parent
-									hoverEnabled: true
-									onEntered: hovered = true
-									onExited: hovered = false
-                                    onClicked: {
-                                        if (!musicController) return
-                                        musicController.playPlaylistTrack(index)
-                                        currentPlaylistIndex = index
+									anchors.margins: 8
+									model: musicController ? musicController.playlistModel : null
+									clip: true
+									ScrollBar.vertical: ScrollBar { active: true }
+                                    
+                                    function updatePageSize() {
+                                        if (musicController && height > 0) {
+                                            // 56 is item height.
+                                            var visibleCount = Math.ceil(height / 56)
+                                            // Use a larger page size (min 50) to support fast scrolling
+                                            var targetSize = Math.max(50, visibleCount * 3)
+                                            musicController.playlistPageSize = targetSize
+                                        }
                                     }
+
+                                    onHeightChanged: updatePageSize()
+                                    Component.onCompleted: updatePageSize()
+
+									delegate: Rectangle {
+                                        id: playlistDelegate
+										width: playlistView.width
+										height: 56
+										radius: 10
+										property bool current: index === currentPlaylistIndex
+										property bool hovered: false
+                                        property bool held: false
+										color: current ? "#dcfce7" : (hovered || held ? "#f1f5f9" : "#ffffff")
+										border.color: current ? "#22c55e" : "transparent"
+                                        
+                                        scale: held ? 1.02 : 1.0
+                                        z: held ? 100 : 1
+                                        Behavior on scale { NumberAnimation { duration: 100 } }
+
+                                        Drag.active: held
+                                        Drag.source: playlistDelegate
+                                        Drag.hotSpot.x: width / 2
+                                        Drag.hotSpot.y: height / 2
+
+										RowLayout {
+											anchors.fill: parent
+											anchors.margins: 12
+											spacing: 10
+
+											Text {
+												text: index + 1
+												color: "#9ca3af"
+												font.pixelSize: 13
+												horizontalAlignment: Text.AlignHCenter
+												verticalAlignment: Text.AlignVCenter
+												Layout.preferredWidth: 32
+                                                
+                                                MouseArea {
+                                                    anchors.fill: parent
+                                                    cursorShape: Qt.OpenHandCursor
+                                                    drag.target: playlistDelegate
+                                                    
+                                                    onPressed: {
+                                                        playlistDelegate.held = true
+                                                    }
+                                                    onReleased: {
+                                                        playlistDelegate.held = false
+                                                    }
+                                                }
+											}
+
+											Text {
+												text: isLoaded ? title : qsTr("加载中...")
+												color: isLoaded ? "#111827" : "#9ca3af"
+												font.pixelSize: 14
+												elide: Text.ElideRight
+												Layout.fillWidth: true
+											}
+
+											Text {
+												text: artists
+												color: "#6b7280"
+												font.pixelSize: 13
+												elide: Text.ElideRight
+												Layout.preferredWidth: 220
+											}
+										}
+
+										MouseArea {
+											anchors.fill: parent
+											hoverEnabled: true
+                                            enabled: isLoaded
+											onEntered: hovered = true
+											onExited: hovered = false
+                                            
+                                            drag.target: playlistDelegate.held ? playlistDelegate : undefined
+                                            drag.axis: Drag.YAxis
+                                            
+                                            onPressAndHold: {
+                                                playlistDelegate.held = true
+                                            }
+                                            onReleased: {
+                                                playlistDelegate.held = false
+                                            }
+                                            
+											onClicked: {
+                                                if (playlistDelegate.held) return
+												if (!musicController) return
+												musicController.playPlaylistTrack(index)
+												currentPlaylistIndex = index
+											}
+                                            
+                                            onPositionChanged: function(mouse) {
+                                                if (playlistDelegate.held) {
+                                                    var targetIndex = playlistView.indexAt(playlistView.width / 2, playlistView.contentY + playlistDelegate.y + mouse.y)
+                                                    if (targetIndex !== -1 && targetIndex !== index) {
+                                                        if (musicController && musicController.playlistModel) {
+                                                            musicController.playlistModel.move(index, targetIndex)
+                                                        }
+                                                    }
+                                                }
+                                            }
+										}
+									}
 								}
 							}
 						}
 					}
 				}
-		}
+			}
 
 			Item {
 				Layout.fillWidth: true
@@ -1018,12 +1177,6 @@ ApplicationWindow {
 				RowLayout {
 					Layout.fillWidth: true
 					spacing: 10
-					Text {
-						color: "#6b7280"
-						text: musicController ? formatMs(progressSlider.pressed ? progressSlider.value : musicController.positionMs) : "0:00"
-						Layout.preferredWidth: 64
-						horizontalAlignment: Text.AlignRight
-					}
 					Slider {
 						id: progressSlider
 						from: 0
@@ -1199,6 +1352,7 @@ ApplicationWindow {
 						hoverEnabled: true
 						cursorShape: Qt.PointingHandCursor
 						onClicked: {
+                            if (queueDrawer.justClosed) return
 							if (queueDrawer.opened) queueDrawer.close()
 							else queueDrawer.open()
 						}
@@ -1206,12 +1360,29 @@ ApplicationWindow {
 				}
 				Drawer {
 					id: queueDrawer
+                    property bool justClosed: false
 					edge: Qt.RightEdge
 					width: Math.round(Math.min(420, Math.min(parent.width * 0.36, (parent.height - 40) / 1.618)))
 					height: Math.round(width * 1.618)
 					y: Math.round((parent.height - height) / 2)
 					modal: false
+                    dim: false
+                    closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+                    onAboutToHide: {
+                        justClosed = true
+                        closeTimer.restart()
+                    }
+                    Timer {
+                        id: closeTimer
+                        interval: 300
+                        onTriggered: queueDrawer.justClosed = false
+                    }
 					interactive: true
+                    onOpened: {
+                        if (musicController && musicController.currentSongIndex >= 0) {
+                            queueListView.positionViewAtIndex(musicController.currentSongIndex, ListView.Center)
+                        }
+                    }
 					background: Rectangle {
 						radius: 12
 						color: "#ffffff"
@@ -1253,30 +1424,74 @@ ApplicationWindow {
 								anchors.margins: 6
                                 model: musicController ? musicController.queueModel : null
 								clip: true
+								ScrollBar.vertical: ScrollBar { active: true }
 								delegate: Rectangle {
+									id: delegateRoot
 									width: queueListView.width
 									height: 48
 									radius: 8
 									property bool current: musicController && index === musicController.currentSongIndex
 									property bool hovered: false
-									color: current ? "#dcfce7" : (hovered ? "#f1f5f9" : "#ffffff")
+									property bool held: false
+									color: current ? "#dcfce7" : (hovered || held ? "#f1f5f9" : "#ffffff")
 									border.color: current ? "#22c55e" : "transparent"
+                                    
+                                    scale: held ? 1.05 : 1.0
+                                    z: held ? 100 : 1
+                                    Behavior on scale { NumberAnimation { duration: 100 } }
+
+                                    Drag.active: held
+                                    Drag.source: delegateRoot
+                                    Drag.hotSpot.x: width / 2
+                                    Drag.hotSpot.y: height / 2
+
 									MouseArea {
+										id: dragArea
 										anchors.fill: parent
 										hoverEnabled: true
                                         acceptedButtons: Qt.LeftButton | Qt.RightButton
 										onEntered: hovered = true
 										onExited: hovered = false
-                                        onClicked: function(mouse) {
+                                        
+                                        onPressed: function(mouse) {
                                             if (mouse.button === Qt.LeftButton) {
+                                                // Long press detection could be better, but for now direct drag or click
+                                            }
+                                            if (mouse.button === Qt.RightButton) {
+                                                var cover = (typeof coverUrl !== "undefined") ? coverUrl : ""
+                                                songActionPopup.openFor(index, title, artists, cover, parent, mouse, "queue")
+                                            }
+                                        }
+
+                                        onPressAndHold: {
+                                            delegateRoot.held = true
+                                        }
+                                        onReleased: {
+                                            delegateRoot.held = false
+                                        }
+                                        
+                                        onClicked: function(mouse) {
+                                            if (mouse.button === Qt.LeftButton && !delegateRoot.held) {
                                                 if (musicController) musicController.playIndex(index)
                                                 queueDrawer.close()
                                             }
                                         }
-                                        onPressed: function(mouse) {
-                                            if (mouse.button === Qt.RightButton) {
-                                                var cover = (typeof coverUrl !== "undefined") ? coverUrl : ""
-                                                songActionPopup.openFor(index, title, artists, cover, parent, mouse, "queue")
+                                        
+                                        drag.target: delegateRoot.held ? delegateRoot : undefined
+                                        drag.axis: Drag.YAxis
+                                        
+                                        onPositionChanged: function(mouse) {
+                                            if (delegateRoot.held) {
+                                                // Basic reordering logic
+                                                var yPos = delegateRoot.y + delegateRoot.height / 2 + mouse.y
+                                                // Map to list view coordinates if needed, but here we can check index
+                                                var targetIndex = queueListView.indexAt(queueListView.width / 2, queueListView.contentY + delegateRoot.y + mouse.y)
+                                                
+                                                if (targetIndex !== -1 && targetIndex !== index) {
+                                                    if (musicController && musicController.queueModel) {
+                                                        musicController.queueModel.move(index, targetIndex)
+                                                    }
+                                                }
                                             }
                                         }
 									}
@@ -1285,12 +1500,26 @@ ApplicationWindow {
 										anchors.margins: 10
 										spacing: 8
 										Text {
+                                            id: indexText
 											text: index + 1
 											color: "#9ca3af"
 											font.pixelSize: 12
 											Layout.preferredWidth: 28
 											horizontalAlignment: Text.AlignHCenter
 											verticalAlignment: Text.AlignVCenter
+                                            
+                                            MouseArea {
+                                                anchors.fill: parent
+                                                cursorShape: Qt.OpenHandCursor
+                                                drag.target: delegateRoot
+                                                
+                                                onPressed: {
+                                                    delegateRoot.held = true
+                                                }
+                                                onReleased: {
+                                                    delegateRoot.held = false
+                                                }
+                                            }
 										}
 										Text {
 											text: title

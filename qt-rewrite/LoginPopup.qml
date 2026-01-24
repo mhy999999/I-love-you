@@ -21,12 +21,10 @@ Popup {
     Connections {
         target: musicController
         function onLoginQrKeyReceived(key) {
-            console.log("QR Key received:", key)
             currentQrKey = key
             musicController.loginQrCreate(key)
         }
         function onLoginQrCreateReceived(qrimg, qrurl) {
-            console.log("QR Create received")
             qrCodeImage.source = qrimg // base64
         }
         function onLoginQrCheckReceived(code, message, cookie) {
