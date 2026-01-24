@@ -121,6 +121,7 @@ public:
 	Q_INVOKABLE void playPlaylistTrack(int index);
 	Q_INVOKABLE void queuePlayFromSearchIndex(int index);
 	Q_INVOKABLE void queueAddFromSearchIndex(int index, bool next);
+	Q_INVOKABLE void queueAddFromPlaylistIndex(int index, bool next);
 	Q_INVOKABLE void queueRemoveAt(int index);
 	Q_INVOKABLE void queueClear();
 	Q_INVOKABLE void loginQrKey();

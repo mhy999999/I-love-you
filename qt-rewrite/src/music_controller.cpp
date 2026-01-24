@@ -1483,6 +1483,33 @@ void MusicController::queueAddFromSearchIndex(int index, bool next)
 	saveQueueToSettings();
 }
 
+void MusicController::queueAddFromPlaylistIndex(int index, bool next)
+{
+	if (index < 0 || index >= m_playlistModel.songs().size())
+		return;
+	const QList<Song> &src = m_playlistModel.songs();
+	Song s = src.at(index);
+    auto songKey = [](const Song &x) {
+        QString p = x.providerId.isEmpty() ? x.source : x.providerId;
+        return p + QStringLiteral(":") + x.id;
+    };
+    QString key = songKey(s);
+    int existing = -1;
+    const QList<Song> &queue = m_queueModel.songs();
+    for (int i = 0; i < queue.size(); ++i) {
+        if (songKey(queue.at(i)) == key) { existing = i; break; }
+    }
+    if (existing >= 0) {
+        playIndex(existing);
+        return;
+    }
+    int insertPos = m_queueModel.rowCount();
+	if (next && m_currentSongIndex >= 0)
+		insertPos = qMin(m_currentSongIndex + 1, m_queueModel.rowCount());
+	m_queueModel.insert(insertPos, s);
+	saveQueueToSettings();
+}
+
 void MusicController::queueRemoveAt(int index)
 {
 	m_queueModel.removeAt(index);

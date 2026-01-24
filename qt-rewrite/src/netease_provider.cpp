@@ -1666,6 +1666,7 @@ Result<PlaylistMeta> NeteaseProvider::parsePlaylistDetail(const QByteArray &body
 
 Result<PlaylistTracksPage> NeteaseProvider::parsePlaylistTracks(const QString &playlistId, int limit, int offset, const QByteArray &body) const
 {
+	// Logger::info(QStringLiteral("parsePlaylistTracks body: %1").arg(QString::fromUtf8(body)));
 	QJsonParseError err{};
 	QJsonDocument doc = QJsonDocument::fromJson(body, &err);
 	if (err.error != QJsonParseError::NoError || !doc.isObject())
@@ -1678,6 +1679,15 @@ Result<PlaylistTracksPage> NeteaseProvider::parsePlaylistTracks(const QString &p
 	}
 	QJsonObject root = doc.object();
 	QJsonArray songsArr = root.value(QStringLiteral("songs")).toArray();
+	/*
+	if (!songsArr.isEmpty()) {
+		QJsonObject first = songsArr.first().toObject();
+		Logger::info(QStringLiteral("First song keys: %1").arg(first.keys().join(", ")));
+		QJsonObject al = first.value("al").toObject();
+		Logger::info(QStringLiteral("First song album keys: %1").arg(al.keys().join(", ")));
+		Logger::info(QStringLiteral("First song album picUrl: %1").arg(al.value("picUrl").toString()));
+	}
+	*/
 	QList<Song> songs;
 	songs.reserve(songsArr.size());
 	for (const QJsonValue &v : songsArr)
@@ -1702,9 +1712,9 @@ Result<PlaylistTracksPage> NeteaseProvider::parsePlaylistTracks(const QString &p
 		s.album.name = al.value(QStringLiteral("name")).toString();
 		{
 			QUrl u(al.value(QStringLiteral("picUrl")).toString());
-			QUrlQuery q(u);
-			if (!q.hasQueryItem(QStringLiteral("param")))
+			if (!u.isEmpty())
 			{
+				QUrlQuery q;
 				q.addQueryItem(QStringLiteral("param"), QStringLiteral("300y300"));
 				u.setQuery(q);
 			}
@@ -2108,6 +2118,7 @@ QSharedPointer<RequestToken> NeteaseProvider::userPlaylist(const QString &uid, i
 
 Result<QList<PlaylistMeta>> NeteaseProvider::parseUserPlaylist(const QByteArray &body) const
 {
+	// Logger::info(QStringLiteral("parseUserPlaylist body: %1").arg(QString::fromUtf8(body)));
 	QJsonParseError err{};
 	QJsonDocument doc = QJsonDocument::fromJson(body, &err);
 	if (err.error != QJsonParseError::NoError || !doc.isObject())
@@ -2120,6 +2131,13 @@ Result<QList<PlaylistMeta>> NeteaseProvider::parseUserPlaylist(const QByteArray 
 	}
 	QJsonObject root = doc.object();
 	QJsonArray playlistArr = root.value(QStringLiteral("playlist")).toArray();
+	/*
+	if (!playlistArr.isEmpty()) {
+		QJsonObject first = playlistArr.first().toObject();
+		Logger::info(QStringLiteral("First playlist keys: %1").arg(first.keys().join(", ")));
+		Logger::info(QStringLiteral("First playlist coverImgUrl: %1").arg(first.value("coverImgUrl").toString()));
+	}
+	*/
 	QList<PlaylistMeta> playlists;
 	for (const QJsonValue &v : playlistArr)
 	{
@@ -2127,7 +2145,20 @@ Result<QList<PlaylistMeta>> NeteaseProvider::parseUserPlaylist(const QByteArray 
 		PlaylistMeta p;
 		p.id = o.value(QStringLiteral("id")).toVariant().toString();
 		p.name = o.value(QStringLiteral("name")).toString();
-		p.coverUrl = QUrl(o.value(QStringLiteral("coverImgUrl")).toString());
+		QString cover = o.value(QStringLiteral("coverImgUrl")).toString();
+		if (cover.isEmpty())
+			cover = o.value(QStringLiteral("picUrl")).toString();
+		if (cover.isEmpty())
+			cover = o.value(QStringLiteral("imgUrl")).toString();
+			
+		QUrl u(cover);
+		if (!u.isEmpty())
+		{
+			QUrlQuery q;
+			q.addQueryItem(QStringLiteral("param"), QStringLiteral("200y200"));
+			u.setQuery(q);
+		}
+		p.coverUrl = u;
 		p.description = o.value(QStringLiteral("description")).toString();
 		p.trackCount = o.value(QStringLiteral("trackCount")).toInt();
 		playlists.append(p);

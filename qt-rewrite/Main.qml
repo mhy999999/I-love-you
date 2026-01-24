@@ -725,6 +725,162 @@ ApplicationWindow {
 				Layout.fillWidth: true
 				Layout.fillHeight: true
 
+                            Popup {
+                                id: playlistSongActionPopup
+                                parent: appWindow.overlay
+                                modal: false
+                                closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+                                background: Rectangle {
+                                    color: "#ffffff"
+                                    radius: 12
+                                    border.color: "#cbd5e1"
+                                    border.width: 1
+                                }
+                                property real targetX: 0
+                                property real targetY: 0
+                                property bool logActive: false
+                                property bool anchorLeft: true
+                                property bool anchorBottom: true
+                                property string anchorCorner: "topLeft"
+                                property bool anchorContent: true
+                                property real clickX: 0
+                                property real clickY: 0
+                                property int edgeMargin: 8
+                                x: Math.max(edgeMargin, Math.min(anchorLeft ? targetX : (targetX - width), appWindow.width - width - edgeMargin))
+                                y: Math.max(edgeMargin, Math.min(anchorBottom ? (targetY - height) : targetY, appWindow.height - height - edgeMargin))
+                                property real phi: 1.618
+                                property int baseW: Math.round(Math.min(360, Math.max(240, playlistView.width * 0.40)))
+                                property int minW: 240
+                                property int maxW: 340
+                                property int headerSpacing: 10
+                                width: Math.round(Math.min(maxW,
+                                                          Math.max(minW,
+                                                                   innerPadding * 2 + coverSize + headerSpacing + Math.max(playlistTitleText.implicitWidth, playlistArtistsText.implicitWidth))))
+                                property int innerPadding: 10
+                                property int contentSpacing: 10
+                                property int dividerHeight: 1
+                                property int titleSize: 15
+                                property int artistSize: 12
+                                property real lineHeightScale: 1.35
+                                property int textSpacing: 6
+                                property int coverSize: Math.round(titleSize * lineHeightScale + artistSize * lineHeightScale + textSpacing)
+                                height: Math.round(innerPadding * 2 + coverSize + dividerHeight + contentSpacing * 3 + actionHeight * 2)
+                                property int actionIconSize: Math.round(Math.max(18, Math.min(24, Math.round(width * 0.07))))
+                                property int actionWidth: Math.round(width - 28)
+                                property int actionHeight: Math.round(actionIconSize + 12)
+                                property int songIndex: -1
+                                property string songTitle: ""
+                                property string songArtists: ""
+                                property url songCover: ""
+                                contentItem: ColumnLayout {
+                                    anchors.margins: playlistSongActionPopup.innerPadding
+                                    spacing: playlistSongActionPopup.contentSpacing
+                                    RowLayout {
+                                        spacing: playlistSongActionPopup.headerSpacing
+                                        Image { source: playlistSongActionPopup.songCover; width: playlistSongActionPopup.coverSize; height: playlistSongActionPopup.coverSize; fillMode: Image.PreserveAspectCrop; sourceSize.width: playlistSongActionPopup.coverSize; sourceSize.height: playlistSongActionPopup.coverSize; visible: status === Image.Ready }
+                                        ColumnLayout {
+                                            spacing: 6
+                                            Text { id: playlistTitleText; text: playlistSongActionPopup.songTitle; color: "#111827"; font.pixelSize: 15; font.weight: Font.DemiBold; elide: Text.ElideRight; Layout.preferredWidth: Math.round(playlistSongActionPopup.width - playlistSongActionPopup.coverSize - playlistSongActionPopup.headerSpacing) }
+                                            Text { id: playlistArtistsText; text: playlistSongActionPopup.songArtists; color: "#6b7280"; font.pixelSize: 12; elide: Text.ElideRight; Layout.preferredWidth: Math.round(playlistSongActionPopup.width - playlistSongActionPopup.coverSize - playlistSongActionPopup.headerSpacing) }
+                                        }
+                                    }
+                                    Rectangle { height: 1; color: "#e5e7eb"; Layout.fillWidth: true }
+                                    RowLayout {
+                                        id: playlistActionPlayRow
+                                        spacing: 8
+                                        Layout.alignment: Qt.AlignLeft
+                                        Layout.fillWidth: true
+                                        MouseArea {
+                                            id: playlistPlayActionMouse
+                                            acceptedButtons: Qt.LeftButton
+                                            onClicked: {
+                                                if (musicController) {
+                                                    musicController.playPlaylistTrack(playlistSongActionPopup.songIndex)
+                                                }
+                                                playlistSongActionPopup.close()
+                                            }
+                                            cursorShape: Qt.PointingHandCursor
+                                            anchors.fill: undefined
+                                            width: playlistSongActionPopup.actionWidth; height: playlistSongActionPopup.actionHeight
+                                            Rectangle { anchors.fill: parent; radius: 6; color: parent.pressed ? "#f3f4f6" : "transparent" }
+                                            RowLayout { id: playlistPlayContentRow; anchors.fill: parent; anchors.margins: 6; spacing: 10; Image { source: iconPlay; width: playlistSongActionPopup.actionIconSize; height: playlistSongActionPopup.actionIconSize; fillMode: Image.PreserveAspectFit; sourceSize.width: playlistSongActionPopup.actionIconSize; sourceSize.height: playlistSongActionPopup.actionIconSize } Text { text: qsTr("播放"); color: "#111827"; font.pixelSize: 13 } }
+                                        }
+                                    }
+                                    RowLayout {
+                                        id: playlistActionNextRow
+                                        spacing: 8
+                                        Layout.alignment: Qt.AlignLeft
+                                        Layout.fillWidth: true
+                                        MouseArea {
+                                            id: playlistNextActionMouse
+                                            acceptedButtons: Qt.LeftButton
+                                            onClicked: {
+                                                if (musicController) {
+                                                    musicController.queueAddFromPlaylistIndex(playlistSongActionPopup.songIndex, true)
+                                                }
+                                                playlistSongActionPopup.close()
+                                            }
+                                            cursorShape: Qt.PointingHandCursor
+                                            width: playlistSongActionPopup.actionWidth; height: playlistSongActionPopup.actionHeight
+                                            Rectangle { anchors.fill: parent; radius: 6; color: parent.pressed ? "#f3f4f6" : "transparent" }
+                                            RowLayout {
+                                                id: playlistNextContentRow
+                                                anchors.fill: parent
+                                                anchors.margins: 6
+                                                spacing: 10
+                                                Image {
+                                                    source: iconNext
+                                                    width: playlistSongActionPopup.actionIconSize
+                                                    height: playlistSongActionPopup.actionIconSize
+                                                    fillMode: Image.PreserveAspectFit
+                                                    sourceSize.width: playlistSongActionPopup.actionIconSize
+                                                    sourceSize.height: playlistSongActionPopup.actionIconSize
+                                                }
+                                                Text {
+                                                    text: qsTr("下一首播放")
+                                                    color: "#111827"
+                                                    font.pixelSize: 13
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                property string sourceType: "playlist"
+
+                                onOpened: if (logActive) {
+                                    var TLx = x; var TLy = y
+                                    var dxTL = TLx - clickX; var dyTL = TLy - clickY
+                                }
+                                onClosed: logActive = false
+                                function openFor(index, title, artists, coverUrl, originItem, mouse, type) {
+                                    songIndex = index; songTitle = title; songArtists = artists; songCover = coverUrl
+                                    sourceType = type || "playlist"
+                                    
+                                    var popupParent = playlistSongActionPopup.parent
+                                    var p = originItem.mapToItem(popupParent, mouse.x, mouse.y)
+                                    clickX = p.x
+                                    clickY = p.y
+                                    
+                                    if (anchorCorner === "auto") {
+                                        anchorLeft = (clickX + width + edgeMargin) <= appWindow.width
+                                        anchorBottom = (clickY + height + edgeMargin) <= appWindow.height
+                                    } else {
+                                        anchorLeft = (anchorCorner === "topLeft" || anchorCorner === "bottomLeft")
+                                        anchorBottom = (anchorCorner === "bottomLeft" || anchorCorner === "bottomRight")
+                                    }
+                                    var tX = clickX
+                                    var tY = clickY
+                                    if (anchorContent) {
+                                        tX = clickX + (anchorLeft ? -innerPadding : innerPadding)
+                                        tY = clickY + (anchorBottom ? innerPadding : -innerPadding)
+                                    }
+                                    targetX = tX
+                                    targetY = tY
+                                    logActive = true
+                                    open()
+                                }
+                            }
+
 				RowLayout {
 					anchors.fill: parent
 					spacing: 0
@@ -794,16 +950,36 @@ ApplicationWindow {
 											anchors.rightMargin: 8
 											spacing: 10
 											
-											Image {
-												source: model.coverUrl
+											Item {
 												Layout.preferredWidth: 40
 												Layout.preferredHeight: 40
-												fillMode: Image.PreserveAspectCrop
-												layer.enabled: true
-												layer.effect: MultiEffect {
-													maskEnabled: true
-													maskSource: Rectangle { width: 40; height: 40; radius: 4; visible: false }
+												
+												Rectangle {
+													anchors.fill: parent
+													color: "#e5e7eb"
+													radius: 4
 												}
+
+												Image {
+													source: model.coverUrl
+													anchors.fill: parent
+													fillMode: Image.PreserveAspectCrop
+													
+													// Temporary disable MultiEffect to debug visibility
+													// layer.enabled: true
+													// layer.effect: MultiEffect {
+													// 	maskEnabled: true
+													// 	maskSource: userPlaylistMask
+													// }
+												}
+												/*
+												Rectangle {
+													id: userPlaylistMask
+													anchors.fill: parent
+													radius: 4
+													visible: false
+												}
+												*/
 											}
 											
 											ColumnLayout {
@@ -961,6 +1137,38 @@ ApplicationWindow {
                                                 }
 											}
 
+											Item {
+												Layout.preferredWidth: 40
+												Layout.preferredHeight: 40
+												
+												Rectangle {
+													anchors.fill: parent
+													color: "#e5e7eb"
+													radius: 4
+												}
+
+												Image {
+													source: model.coverUrl
+													anchors.fill: parent
+													fillMode: Image.PreserveAspectCrop
+													
+													// Temporary disable MultiEffect
+													// layer.enabled: true
+													// layer.effect: MultiEffect {
+													// 	maskEnabled: true
+													// 	maskSource: playlistMask
+													// }
+												}
+												/*
+												Rectangle {
+													id: playlistMask
+													anchors.fill: parent
+													radius: 4
+													visible: false
+												}
+												*/
+											}
+
 											Text {
 												text: isLoaded ? title : qsTr("加载中...")
 												color: isLoaded ? "#111827" : "#9ca3af"
@@ -982,6 +1190,7 @@ ApplicationWindow {
 											anchors.fill: parent
 											hoverEnabled: true
                                             enabled: isLoaded
+                                            acceptedButtons: Qt.LeftButton | Qt.RightButton
 											onEntered: hovered = true
 											onExited: hovered = false
                                             
@@ -989,17 +1198,22 @@ ApplicationWindow {
                                             drag.axis: Drag.YAxis
                                             
                                             onPressAndHold: {
-                                                playlistDelegate.held = true
+                                                if (mouse.button === Qt.LeftButton) playlistDelegate.held = true
                                             }
                                             onReleased: {
                                                 playlistDelegate.held = false
                                             }
                                             
-											onClicked: {
+											onClicked: function(mouse) {
                                                 if (playlistDelegate.held) return
 												if (!musicController) return
-												musicController.playPlaylistTrack(index)
-												currentPlaylistIndex = index
+                                                if (mouse.button === Qt.LeftButton) {
+                                                    musicController.playPlaylistTrack(index)
+                                                    currentPlaylistIndex = index
+                                                } else if (mouse.button === Qt.RightButton) {
+                                                    var cover = coverUrl
+                                                    playlistSongActionPopup.openFor(index, title, artists, cover, playlistDelegate, mouse, "playlist")
+                                                }
 											}
                                             
                                             onPositionChanged: function(mouse) {
@@ -1352,7 +1566,8 @@ ApplicationWindow {
 						hoverEnabled: true
 						cursorShape: Qt.PointingHandCursor
 						onClicked: {
-                            if (queueDrawer.justClosed) return
+                            var now = new Date().getTime()
+                            if (now - queueDrawer.lastCloseTime < 300) return
 							if (queueDrawer.opened) queueDrawer.close()
 							else queueDrawer.open()
 						}
@@ -1360,7 +1575,7 @@ ApplicationWindow {
 				}
 				Drawer {
 					id: queueDrawer
-                    property bool justClosed: false
+                    property real lastCloseTime: 0
 					edge: Qt.RightEdge
 					width: Math.round(Math.min(420, Math.min(parent.width * 0.36, (parent.height - 40) / 1.618)))
 					height: Math.round(width * 1.618)
@@ -1369,13 +1584,7 @@ ApplicationWindow {
                     dim: false
                     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
                     onAboutToHide: {
-                        justClosed = true
-                        closeTimer.restart()
-                    }
-                    Timer {
-                        id: closeTimer
-                        interval: 300
-                        onTriggered: queueDrawer.justClosed = false
+                        lastCloseTime = new Date().getTime()
                     }
 					interactive: true
                     onOpened: {
