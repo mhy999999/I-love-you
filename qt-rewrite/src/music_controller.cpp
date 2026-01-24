@@ -1170,13 +1170,15 @@ void MusicController::onPlaylistRowRequested(int index)
 		loadPlaylistPage(page);
 	}
 
-	// Prefetch next page
-	int nextPage = page + 1;
-	if (nextPage * pageSize < m_playlistTotal)
-	{
-		if (!m_playlistModel.isLoaded(nextPage * pageSize) && !m_requestedPages.contains(nextPage))
+	// Prefetch next 2 pages
+	for (int i = 1; i <= 2; ++i) {
+		int nextPage = page + i;
+		if (nextPage * pageSize < m_playlistTotal)
 		{
-			loadPlaylistPage(nextPage);
+			if (!m_playlistModel.isLoaded(nextPage * pageSize) && !m_requestedPages.contains(nextPage))
+			{
+				loadPlaylistPage(nextPage);
+			}
 		}
 	}
 }
@@ -1210,18 +1212,18 @@ void MusicController::loadPlaylistPage(int page)
 		}
 		
 		m_playlistModel.updateRange(offset, result.value.songs);
-		
+
 		// Unload pages outside of window centered on m_lastRequestedPage
-        // If m_lastRequestedPage is -1 (unlikely), use current page
-        int centerPage = (m_lastRequestedPage >= 0) ? m_lastRequestedPage : page;
+		// Buffer strategy: Keep 3 pages before and after current page (User requested max 3 pages buffer)
+		// This balances memory usage with smooth scrolling/image retention.
+		int centerPage = (m_lastRequestedPage >= 0) ? m_lastRequestedPage : page;
 
 		int pageSize = m_playlistPageSize;
-        // Increase buffer to 2 pages to prevent flickering during fast scroll
-        int buffer = pageSize * 2; 
-        
+		int buffer = pageSize * 3; 
+
 		int keepStart = qMax(0, centerPage * pageSize - buffer);
 		int keepEnd = (centerPage + 1) * pageSize + buffer;
-		
+
 		// Clear before keepStart
 		if (keepStart > 0) {
 			m_playlistModel.clearRange(0, keepStart);

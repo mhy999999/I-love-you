@@ -137,6 +137,7 @@ public:
 	Q_INVOKABLE void checkLoginStatus();
 	Q_INVOKABLE void playlistRemoveAt(int index);
 	Q_INVOKABLE void loadUserPlaylist(const QString &uid = QString());
+	Q_INVOKABLE void onPlaylistRowRequested(int index);
 
 signals:
 	void loadingChanged();
@@ -256,8 +257,6 @@ private:
     QMap<int, QSharedPointer<RequestToken>> m_playlistPageTokens;
     void loadPlaylistPage(int page);
 
-private slots:
-    void onPlaylistRowRequested(int index);
 };
 
 }

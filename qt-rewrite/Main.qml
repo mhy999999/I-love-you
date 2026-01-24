@@ -626,6 +626,23 @@ ApplicationWindow {
 											Layout.preferredWidth: 32
 										}
 
+										Item {
+											Layout.preferredWidth: 40
+											Layout.preferredHeight: 40
+											
+											Rectangle {
+												anchors.fill: parent
+												color: "#e5e7eb"
+												radius: 4
+											}
+
+											Image {
+												source: getThumb(model.coverUrl, 100)
+												anchors.fill: parent
+												fillMode: Image.PreserveAspectCrop
+											}
+										}
+
 										Text {
 											text: title
 											color: "#111827"
@@ -686,7 +703,7 @@ ApplicationWindow {
 									id: coverImage
 									Layout.fillWidth: true
 									Layout.preferredHeight: 200
-									source: musicController ? musicController.coverSource : ""
+									source: musicController ? getThumb(musicController.coverSource, 200) : ""
 									fillMode: Image.PreserveAspectFit
 									visible: status === Image.Ready
 								}
@@ -787,7 +804,7 @@ ApplicationWindow {
                                     spacing: playlistSongActionPopup.contentSpacing
                                     RowLayout {
                                         spacing: playlistSongActionPopup.headerSpacing
-                                        Image { source: playlistSongActionPopup.songCover; width: playlistSongActionPopup.coverSize; height: playlistSongActionPopup.coverSize; fillMode: Image.PreserveAspectCrop; sourceSize.width: playlistSongActionPopup.coverSize; sourceSize.height: playlistSongActionPopup.coverSize; visible: status === Image.Ready }
+                                        Image { source: getThumb(playlistSongActionPopup.songCover, 100); width: playlistSongActionPopup.coverSize; height: playlistSongActionPopup.coverSize; fillMode: Image.PreserveAspectCrop; sourceSize.width: playlistSongActionPopup.coverSize; sourceSize.height: playlistSongActionPopup.coverSize; visible: status === Image.Ready }
                                         ColumnLayout {
                                             spacing: 6
                                             Text { id: playlistTitleText; text: playlistSongActionPopup.songTitle; color: "#111827"; font.pixelSize: 15; font.weight: Font.DemiBold; elide: Text.ElideRight; Layout.preferredWidth: Math.round(playlistSongActionPopup.width - playlistSongActionPopup.coverSize - playlistSongActionPopup.headerSpacing) }
@@ -1102,6 +1119,12 @@ ApplicationWindow {
 
 									delegate: Rectangle {
                                         id: playlistDelegate
+                                        // Notify controller about visible row to trigger prefetch/cleanup
+                                        Component.onCompleted: {
+                                            if (musicController) {
+                                                musicController.onPlaylistRowRequested(index)
+                                            }
+                                        }
 										width: playlistView.width
 										height: 56
 										radius: 10
@@ -1158,7 +1181,7 @@ ApplicationWindow {
 												}
 
 												Image {
-													source: model.coverUrl
+													source: getThumb(model.coverUrl, 100)
 													anchors.fill: parent
 													fillMode: Image.PreserveAspectCrop
 													
@@ -1740,6 +1763,24 @@ ApplicationWindow {
                                                 }
                                             }
 										}
+
+										Item {
+											Layout.preferredWidth: 32
+											Layout.preferredHeight: 32
+											
+											Rectangle {
+												anchors.fill: parent
+												color: "#e5e7eb"
+												radius: 4
+											}
+
+											Image {
+												source: getThumb(model.coverUrl, 80)
+												anchors.fill: parent
+												fillMode: Image.PreserveAspectCrop
+											}
+										}
+
 										Text {
 											text: title
 											color: "#111827"
