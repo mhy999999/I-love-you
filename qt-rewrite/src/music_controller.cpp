@@ -1004,6 +1004,7 @@ void MusicController::playIndex(int index)
 		return;
 	const Song &song = songs.at(index);
 	QString songId = song.id;
+    m_currentSongId = songId;
 	QString providerId = song.providerId;
 	QString source = song.source;
 	QStringList artistNames;
@@ -1235,7 +1236,7 @@ void MusicController::loadPlaylistPage(int page)
         m_playlistPageTokens.insert(page, token);
     }
 }
-void MusicController::importPlaylistToQueue(const QString &playlistId, bool clearFirst, const QString &playSongId)
+void MusicController::importPlaylistToQueue(const QString &playlistId, bool clearFirst, const QString &playSongId, bool preventReplay)
 {
     QString targetId = playlistId.isEmpty() ? m_playlistId : playlistId;
     if (targetId.isEmpty()) return;
@@ -1248,7 +1249,7 @@ void MusicController::importPlaylistToQueue(const QString &playlistId, bool clea
     int limit = 1000; 
     int offset = 0;
 
-    importToken = providerManager.playlistTracks(targetId, limit, offset, [this, clearFirst, playSongId](Result<PlaylistTracksPage> result) {
+    importToken = providerManager.playlistTracks(targetId, limit, offset, [this, clearFirst, playSongId, preventReplay](Result<PlaylistTracksPage> result) {
         importToken.clear();
         if (!result.ok) {
             emit errorOccurred("Import failed: " + result.error.message);
@@ -1295,6 +1296,11 @@ void MusicController::importPlaylistToQueue(const QString &playlistId, bool clea
         if (!playSongId.isEmpty()) {
             for (int i = 0; i < queue.size(); ++i) {
                 if (queue.at(i).id == playSongId) {
+                    if (preventReplay && m_currentSongId == playSongId) {
+                         setCurrentSongIndex(i);
+                         saveQueueToSettings();
+                         return;
+                    }
                     playIndex(i);
                     return;
                 }
@@ -1309,7 +1315,11 @@ void MusicController::playPlaylistTrack(int index)
 		return;
 
     const Song &s = m_playlistModel.songs().at(index);
-    importPlaylistToQueue(QString(), true, s.id);
+    // 立即播放当前点击的歌曲，无需等待整个歌单加载
+    m_queueModel.setSongs({s});
+    playIndex(0);
+    // 后台加载完整歌单并更新队列，同时避免重新触发播放
+    importPlaylistToQueue(QString(), true, s.id, true);
 }
 
 void MusicController::seek(qint64 positionMs)

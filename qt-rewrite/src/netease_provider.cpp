@@ -407,10 +407,11 @@ QSharedPointer<RequestToken> NeteaseProvider::playUrl(const QString &songId, con
 	auto readQualityLevel = []() -> QString {
 		QSettings settings;
 		settings.beginGroup(QStringLiteral("set"));
-		QString level = settings.value(QStringLiteral("musicQuality"), QStringLiteral("higher")).toString().trimmed();
+		// 默认使用 standard (128k) 以优化加载速度，原默认为 higher (192k+)
+		QString level = settings.value(QStringLiteral("musicQuality"), QStringLiteral("standard")).toString().trimmed();
 		settings.endGroup();
 		if (level.isEmpty())
-			level = QStringLiteral("higher");
+			level = QStringLiteral("standard");
 		return level;
 	};
 

@@ -117,7 +117,7 @@ public:
 	Q_INVOKABLE void stop();
 	Q_INVOKABLE void adjustLyricOffsetMs(qint64 deltaMs);
 	Q_INVOKABLE void loadPlaylist(const QString &playlistId);
-	Q_INVOKABLE void importPlaylistToQueue(const QString &playlistId = QString(), bool clearFirst = false, const QString &playSongId = QString());
+	Q_INVOKABLE void importPlaylistToQueue(const QString &playlistId = QString(), bool clearFirst = false, const QString &playSongId = QString(), bool preventReplay = false);
 	Q_INVOKABLE void playPlaylistTrack(int index);
 	Q_INVOKABLE void queuePlayFromSearchIndex(int index);
 	Q_INVOKABLE void queueAddFromSearchIndex(int index, bool next);
@@ -216,6 +216,7 @@ private:
 	int m_playlistLimit = 50;
     int m_playlistPageSize = 50;
 	QString m_currentSongTitle;
+	QString m_currentSongId;
 	QString m_currentSongArtists;
 	int m_playbackMode = Sequence;
 	UserProfile m_userProfile;

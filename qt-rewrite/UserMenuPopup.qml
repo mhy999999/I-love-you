@@ -52,7 +52,13 @@ Popup {
                     Image {
                         id: avatarImg
                         anchors.fill: parent
-                        source: musicController.avatarUrl
+                        source: {
+                            var url = musicController.avatarUrl
+                            if (url && url.toString().indexOf("http") === 0 && url.toString().indexOf("?param=") === -1) {
+                                return url + "?param=100y100"
+                            }
+                            return url
+                        }
                         visible: false
                         fillMode: Image.PreserveAspectCrop
                         mipmap: true

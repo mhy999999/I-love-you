@@ -57,6 +57,16 @@ ApplicationWindow {
 		return min + ":" + s
 	}
 
+	function getThumb(url, size) {
+		if (!url) return ""
+		var s = size || 100
+		var u = url.toString()
+		if (u.indexOf("http") === 0 && u.indexOf("?param=") === -1) {
+			return u + "?param=" + s + "y" + s
+		}
+		return u
+	}
+
 	Connections {
 		target: musicController
 		function onCurrentSongIndexChanged() {
@@ -157,7 +167,7 @@ ApplicationWindow {
 						Image {
 							id: sidebarAvatarImg
 							anchors.fill: parent
-							source: musicController.avatarUrl
+							source: getThumb(musicController.avatarUrl, 100)
 							visible: true // Temporarily visible for debugging
 							fillMode: Image.PreserveAspectCrop
 							mipmap: true
@@ -474,7 +484,7 @@ ApplicationWindow {
                                     spacing: songActionPopup.contentSpacing
                                     RowLayout {
                                         spacing: songActionPopup.headerSpacing
-                                        Image { source: songActionPopup.songCover; width: songActionPopup.coverSize; height: songActionPopup.coverSize; fillMode: Image.PreserveAspectCrop; sourceSize.width: songActionPopup.coverSize; sourceSize.height: songActionPopup.coverSize; visible: status === Image.Ready }
+                                        Image { source: getThumb(songActionPopup.songCover, 100); width: songActionPopup.coverSize; height: songActionPopup.coverSize; fillMode: Image.PreserveAspectCrop; sourceSize.width: songActionPopup.coverSize; sourceSize.height: songActionPopup.coverSize; visible: status === Image.Ready }
                                         ColumnLayout {
                                             spacing: 6
                                             Text { id: titleText; text: songActionPopup.songTitle; color: "#111827"; font.pixelSize: 15; font.weight: Font.DemiBold; elide: Text.ElideRight; Layout.preferredWidth: Math.round(songActionPopup.width - songActionPopup.coverSize - songActionPopup.headerSpacing) }
@@ -961,7 +971,7 @@ ApplicationWindow {
 												}
 
 												Image {
-													source: model.coverUrl
+													source: getThumb(model.coverUrl, 100)
 													anchors.fill: parent
 													fillMode: Image.PreserveAspectCrop
 													
@@ -1304,7 +1314,7 @@ ApplicationWindow {
 					clip: true
 					Image {
 						anchors.fill: parent
-						source: musicController ? musicController.coverSource : ""
+						source: musicController ? getThumb(musicController.coverSource, 140) : ""
 						fillMode: Image.PreserveAspectCrop
 						visible: status === Image.Ready
 					}
