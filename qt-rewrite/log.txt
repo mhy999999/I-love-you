@@ -9,39 +9,3 @@ First playlist keys: adType, anonimous, artists, backgroundCoverId, backgroundCo
 First playlist coverImgUrl: http://p1.music.126.net/BInCiyvjo5Dk_xR1SA0pig==/109951165447563579.jpg
 qrc:/qt/qml/qtrewrite/Main.qml:957:13: QML QQuickImage: Error transferring http://p1.music.126.net/VWUg6fu4AjtCnmsbGUUBog==/109951168605372710.jpg?imageView=1&thumbnail=800y800&enlarge=1%7CimageView%3D1&watermark&type=1&image=b2JqL3c1bkRrTUtRd3JMRGpEekNtOE9tLzMxNjg5NTQ2OTkxL2Y4ZjYvMjAyMzEwMjMxNjUyMjMveDg1NzE3MDA3Mjk1NDMxMzcucG5n&dx=0&dy=0%7Cwatermark&type=1&image=b2JqL3dvbkRsc0tVd3JMQ2xHakNtOEt4LzI3NjEwNDk3MDYyL2VlOTMvOTIxYS82NjE4LzdhMDc5ZDg0NTYyMDAwZmVkZWJmMjVjYjE4NjhkOWEzLnBuZw%3D%3D&dx=0&dy=0%7CimageView%3D1&param=200y200 - server replied: Bad Request
 
-
-
-D:\project\I-love-you\qt-rewrite\src\provider_manager.cpp:92: error: C2511: ��QSharedPointer<App::RequestToken> App::ProviderManager::search(const QString &,int,int,const App::IProvider::SearchCallback &,const QStringList &)��:��App::ProviderManager����û���ҵ����صĳ�Ա����
-D:\project\I-love-you\qt-rewrite\src\provider_manager.cpp(92): error C2511: ��QSharedPointer<App::RequestToken> App::ProviderManager::search(const QString &,int,int,const App::IProvider::SearchCallback &,const QStringList &)��:��App::ProviderManager����û���ҵ����صĳ�Ա����
-D:\project\I-love-you\qt-rewrite\src\provider_manager.h(30): note: �μ���App::ProviderManager��������
-D:\project\I-love-you\qt-rewrite\src\provider_manager.cpp:94: error: C2352: ��App::ProviderManager::resolveProviders��: ���÷Ǿ�̬��Ա������Ҫһ������
-D:\project\I-love-you\qt-rewrite\src\provider_manager.cpp(94): error C2352: ��App::ProviderManager::resolveProviders��: ���÷Ǿ�̬��Ա������Ҫһ������
-D:\project\I-love-you\qt-rewrite\src\provider_manager.cpp(53): note: �μ���App::ProviderManager::resolveProviders��������
-D:\project\I-love-you\qt-rewrite\src\provider_manager.cpp:148: error: C2671: ��App::ProviderManager::search��: ��̬��Ա����û�С�this��ָ��
-D:\project\I-love-you\qt-rewrite\src\provider_manager.cpp:148: error: C2440: ��<function-style-cast>��: �޷��ӡ�initializer list��ת��Ϊ��App::ProviderManager::search::<lambda_2>��
-D:\project\I-love-you\qt-rewrite\src\provider_manager.cpp(148): error C2440: ��<function-style-cast>��: �޷��ӡ�initializer list��ת��Ϊ��App::ProviderManager::search::<lambda_2>��
-D:\project\I-love-you\qt-rewrite\src\provider_manager.cpp(148): note: ��App::ProviderManager::search::<lambda_2>::<lambda_2>��: ���������� 8 ������
-D:\project\I-love-you\qt-rewrite\src\provider_manager.cpp(148): note: ����ƥ�������б���(const QString, int, int, QList<App::IProvider *>, const App::IProvider::SearchCallback, QSharedPointer<App::RequestToken>, QSharedPointer<App::ProviderManager::search::State>, QSharedPointer<std::function<void (void)>>)��ʱ
-D:\project\I-love-you\qt-rewrite\src\music_controller.cpp:985: error: C2664: ��QSharedPointer<App::RequestToken> App::ProviderManager::search(const QString &,int,const App::IProvider::SearchCallback &,const QStringList &)��: �޷������� 3 �ӡ�int��ת��Ϊ��const App::IProvider::SearchCallback &��
-D:\project\I-love-you\qt-rewrite\src\music_controller.cpp(985): error C2664: ��QSharedPointer<App::RequestToken> App::ProviderManager::search(const QString &,int,const App::IProvider::SearchCallback &,const QStringList &)��: �޷������� 3 �ӡ�int��ת��Ϊ��const App::IProvider::SearchCallback &��
-D:\project\I-love-you\qt-rewrite\src\music_controller.cpp(985): note: ԭ������: �޷��ӡ�int��ת��Ϊ��const App::IProvider::SearchCallback��
-D:\project\I-love-you\qt-rewrite\src\music_controller.cpp(985): note: ��std::function<void (App::Result<QList<App::Song>>)>::function��: û�����غ�������ת�����в�������
-C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\include\functional(1096): note: �����ǡ�std::function<void (App::Result<QList<App::Song>>)>::function(std::nullptr_t) noexcept��
-D:\project\I-love-you\qt-rewrite\src\music_controller.cpp(985): note: ��std::function<void (App::Result<QList<App::Song>>)>::function(std::nullptr_t) noexcept��: �޷������� 1 �ӡ�int��ת��Ϊ��std::nullptr_t��
-D:\project\I-love-you\qt-rewrite\src\music_controller.cpp(985): note: ����ָ�볣����ת��Ϊ nullptr_t
-C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\include\functional(1103): note: ��    ��std::function<void (App::Result<QList<App::Song>>)>::function(_Fx &&)��
-D:\project\I-love-you\qt-rewrite\src\music_controller.cpp(985): note: ����ƥ�������б���(int)��ʱ
-D:\project\I-love-you\qt-rewrite\src\provider_manager.h(51): note: �μ���App::ProviderManager::search��������
-D:\project\I-love-you\qt-rewrite\src\music_controller.cpp(985): note: ����ƥ�������б���(const QString, int, int, App::MusicController::search::<lambda_1>)��ʱ
-D:\project\I-love-you\qt-rewrite\src\music_controller.cpp:1016: error: C2664: ��QSharedPointer<App::RequestToken> App::ProviderManager::search(const QString &,int,const App::IProvider::SearchCallback &,const QStringList &)��: �޷������� 3 �ӡ�int��ת��Ϊ��const App::IProvider::SearchCallback &��
-D:\project\I-love-you\qt-rewrite\src\music_controller.cpp(1016): error C2664: ��QSharedPointer<App::RequestToken> App::ProviderManager::search(const QString &,int,const App::IProvider::SearchCallback &,const QStringList &)��: �޷������� 3 �ӡ�int��ת��Ϊ��const App::IProvider::SearchCallback &��
-D:\project\I-love-you\qt-rewrite\src\music_controller.cpp(1016): note: ԭ������: �޷��ӡ�int��ת��Ϊ��const App::IProvider::SearchCallback��
-D:\project\I-love-you\qt-rewrite\src\music_controller.cpp(1016): note: ��std::function<void (App::Result<QList<App::Song>>)>::function��: û�����غ�������ת�����в�������
-C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\include\functional(1096): note: �����ǡ�std::function<void (App::Result<QList<App::Song>>)>::function(std::nullptr_t) noexcept��
-D:\project\I-love-you\qt-rewrite\src\music_controller.cpp(1016): note: ��std::function<void (App::Result<QList<App::Song>>)>::function(std::nullptr_t) noexcept��: �޷������� 1 �ӡ�int��ת��Ϊ��std::nullptr_t��
-D:\project\I-love-you\qt-rewrite\src\music_controller.cpp(1016): note: ����ָ�볣����ת��Ϊ nullptr_t
-C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\include\functional(1103): note: ��    ��std::function<void (App::Result<QList<App::Song>>)>::function(_Fx &&)��
-D:\project\I-love-you\qt-rewrite\src\music_controller.cpp(1016): note: ����ƥ������б���(int)��ʱ
-D:\project\I-love-you\qt-rewrite\src\provider_manager.h(51): note: �μ���App::ProviderManager::search��������
-D:\project\I-love-you\qt-rewrite\src\music_controller.cpp(1016): note: ����ƥ�������б���(QString, int, int, App::MusicController::loadNextSearchPage::<lambda_1>)��ʱ
-:-1: error: ninja: build stopped: subcommand failed.

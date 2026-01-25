@@ -2162,6 +2162,7 @@ Result<QList<PlaylistMeta>> NeteaseProvider::parseUserPlaylist(const QByteArray 
 		p.coverUrl = u;
 		p.description = o.value(QStringLiteral("description")).toString();
 		p.trackCount = o.value(QStringLiteral("trackCount")).toInt();
+		p.creatorId = o.value(QStringLiteral("creator")).toObject().value(QStringLiteral("userId")).toVariant().toString();
 		playlists.append(p);
 	}
 	return Result<QList<PlaylistMeta>>::success(playlists);

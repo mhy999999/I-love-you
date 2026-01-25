@@ -514,7 +514,7 @@ ApplicationWindow {
                                             anchors.fill: undefined
                                             width: songActionPopup.actionWidth; height: songActionPopup.actionHeight
                                             Rectangle { anchors.fill: parent; radius: 6; color: parent.pressed ? "#f3f4f6" : "transparent" }
-                                            RowLayout { id: playContentRow; anchors.fill: parent; anchors.margins: 6; spacing: 10; Image { source: iconPlay; width: songActionPopup.actionIconSize; height: songActionPopup.actionIconSize; fillMode: Image.PreserveAspectFit; sourceSize.width: songActionPopup.actionIconSize; sourceSize.height: songActionPopup.actionIconSize } Text { text: qsTr("播放"); color: "#111827"; font.pixelSize: 13 } }
+                                            RowLayout { id: playContentRow; anchors.fill: parent; anchors.margins: 6; spacing: 10; Image { source: iconPlay; width: songActionPopup.actionIconSize; height: songActionPopup.actionIconSize; fillMode: Image.PreserveAspectFit; sourceSize.width: songActionPopup.actionIconSize; sourceSize.height: songActionPopup.actionIconSize } Text { text: qsTr("播放"); color: "#111827"; font.pixelSize: 13 } Item { Layout.fillWidth: true } }
                                         }
                                     }
                                     RowLayout {
@@ -556,6 +556,7 @@ ApplicationWindow {
                                                     color: "#111827"
                                                     font.pixelSize: 13
                                                 }
+                                                Item { Layout.fillWidth: true }
                                             }
                                         }
                                     }
@@ -637,8 +638,36 @@ ApplicationWindow {
 									radius: 10
                                     property bool current: false
 									property bool hovered: false
-                                    color: hovered ? "#f1f5f9" : "#ffffff"
+                                    // 搜索列表没有直接的 current 状态，暂不处理标题变色，或者如果能获取到 id
+                                    // 这里假设搜索结果列表不显示“正在播放”状态，只响应播放操作
+                                    property bool isPlayingThis: false // TODO: 需要通过 ID 判断
+
+                                    color: (hovered || ListView.isCurrentItem) ? "#f1f5f9" : "#ffffff"
                                     border.color: "transparent"
+
+                                    MouseArea {
+                                        id: searchItemMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                        onEntered: hovered = true
+                                        onExited: hovered = false
+                                        onClicked: function(mouse){
+                                            listView.currentIndex = index
+                                        }
+                                        onDoubleClicked: function(mouse){
+                                            if (mouse.button === Qt.LeftButton) {
+                                                if (musicController) musicController.queuePlayFromSearchIndex(index)
+                                                currentPlaylistIndex = -1
+                                            }
+                                        }
+                                        onPressed: function(mouse){
+                                            if (mouse.button === Qt.RightButton) {
+                                                var cover = coverUrl
+                                                songActionPopup.openFor(index, title, artists, cover, searchItemMouse, mouse)
+                                            }
+                                        }
+                                    }
 
 									RowLayout {
 										anchors.fill: parent
@@ -671,48 +700,98 @@ ApplicationWindow {
 											}
 										}
 
-										Text {
-											text: title
-											color: "#111827"
-											font.pixelSize: 14
-											elide: Text.ElideRight
+										ColumnLayout {
 											Layout.fillWidth: true
+											spacing: 2
+											
+											Text {
+												text: title
+												color: "#111827"
+												font.pixelSize: 14
+												elide: Text.ElideRight
+												Layout.fillWidth: true
+											}
+											
+											Text {
+												text: artists
+												color: "#6b7280"
+												font.pixelSize: 12
+												elide: Text.ElideRight
+												Layout.fillWidth: true
+											}
 										}
 
-										Text {
-											text: artists
-											color: "#6b7280"
-											font.pixelSize: 13
-											elide: Text.ElideRight
-											Layout.preferredWidth: 150
-										}
+                                        Rectangle {
+                                            Layout.preferredWidth: 80
+                                            Layout.preferredHeight: 32
+                                            radius: 16
+                                            color: "#f3f4f6"
+                                            
+                                            RowLayout {
+                                                anchors.fill: parent
+                                                spacing: 0
+                                                
+                                                // Like Button
+                                                Item {
+                                                    Layout.fillHeight: true
+                                                    Layout.preferredWidth: 40
+                                                    
+                                                    property bool isLiked: false
+                                                    
+                                                    Image {
+                                                        anchors.centerIn: parent
+                                                        width: 20
+                                                        height: 20
+                                                        source: parent.isLiked ? "file:///d:/project/I-love-you/qt-rewrite/ui-asset/black-backgroud/music_like/喜欢.svg" : "file:///d:/project/I-love-you/qt-rewrite/ui-asset/black-backgroud/music_like/not喜欢.svg"
+                                                        fillMode: Image.PreserveAspectFit
+                                                    }
+                                                    MouseArea {
+                                                        anchors.fill: parent
+                                                        cursorShape: Qt.PointingHandCursor
+                                                        onClicked: parent.isLiked = !parent.isLiked
+                                                    }
+                                                }
+                                                
+                                                // Play Button
+                                                Item {
+                                                    Layout.fillHeight: true
+                                                    Layout.preferredWidth: 40
+                                                    
+                                                    Rectangle {
+                                                        anchors.centerIn: parent
+                                                        width: 28
+                                                        height: 28
+                                                        radius: 14
+                                                        color: searchDelegate.isPlayingThis ? "#22c55e" : "transparent"
+                                                    }
+                                                    
+                                                    Image {
+                                                        id: searchPlayIcon
+                                                        anchors.centerIn: parent
+                                                        width: 20
+                                                        height: 20
+                                                        source: "file:///d:/project/I-love-you/qt-rewrite/ui-asset/black-backgroud/播放.svg"
+                                                        fillMode: Image.PreserveAspectFit
+                                                        visible: !searchDelegate.isPlayingThis
+                                                    }
+                                                    
+                                                    MultiEffect {
+                                                        source: searchPlayIcon
+                                                        anchors.fill: searchPlayIcon
+                                                        colorization: 1.0
+                                                        colorizationColor: "#ffffff"
+                                                        visible: searchDelegate.isPlayingThis
+                                                    }
 
-										Text {
-											text: formatMs(duration)
-											color: "#6b7280"
-											font.pixelSize: 13
-											horizontalAlignment: Text.AlignRight
-											Layout.preferredWidth: 64
-										}
-									}
-
-                                    MouseArea {
-                                        id: searchItemMouse
-										anchors.fill: parent
-										hoverEnabled: true
-                                        acceptedButtons: Qt.LeftButton | Qt.RightButton
-										onEntered: hovered = true
-										onExited: hovered = false
-                                        onClicked: function(mouse){
-                                            if (mouse.button === Qt.LeftButton) {
-                                                if (musicController) musicController.queuePlayFromSearchIndex(index)
-                                                currentPlaylistIndex = -1
-                                            }
-                                        }
-                                        onPressed: function(mouse){
-                                            if (mouse.button === Qt.RightButton) {
-                                                var cover = coverUrl
-                                                songActionPopup.openFor(index, title, artists, cover, searchItemMouse, mouse)
+                                                    MouseArea {
+                                                        anchors.fill: parent
+                                                        cursorShape: Qt.PointingHandCursor
+                                                        onClicked: {
+                                                            if (musicController) musicController.queuePlayFromSearchIndex(index)
+                                                            currentPlaylistIndex = -1
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }
 									}
@@ -859,7 +938,7 @@ ApplicationWindow {
                                             anchors.fill: undefined
                                             width: playlistSongActionPopup.actionWidth; height: playlistSongActionPopup.actionHeight
                                             Rectangle { anchors.fill: parent; radius: 6; color: parent.pressed ? "#f3f4f6" : "transparent" }
-                                            RowLayout { id: playlistPlayContentRow; anchors.fill: parent; anchors.margins: 6; spacing: 10; Image { source: iconPlay; width: playlistSongActionPopup.actionIconSize; height: playlistSongActionPopup.actionIconSize; fillMode: Image.PreserveAspectFit; sourceSize.width: playlistSongActionPopup.actionIconSize; sourceSize.height: playlistSongActionPopup.actionIconSize } Text { text: qsTr("播放"); color: "#111827"; font.pixelSize: 13 } }
+                                            RowLayout { id: playlistPlayContentRow; anchors.fill: parent; anchors.margins: 6; spacing: 10; Image { source: iconPlay; width: playlistSongActionPopup.actionIconSize; height: playlistSongActionPopup.actionIconSize; fillMode: Image.PreserveAspectFit; sourceSize.width: playlistSongActionPopup.actionIconSize; sourceSize.height: playlistSongActionPopup.actionIconSize } Text { text: qsTr("播放"); color: "#111827"; font.pixelSize: 13 } Item { Layout.fillWidth: true } }
                                         }
                                     }
                                     RowLayout {
@@ -897,6 +976,7 @@ ApplicationWindow {
                                                     color: "#111827"
                                                     font.pixelSize: 13
                                                 }
+                                                Item { Layout.fillWidth: true }
                                             }
                                         }
                                     }
@@ -975,15 +1055,10 @@ ApplicationWindow {
 								}
 							}
 							
-							ListView {
-								id: userPlaylistView
-								Layout.fillWidth: true
-								Layout.fillHeight: true
-								clip: true
-								model: musicController ? musicController.userPlaylistModel : null
-								ScrollBar.vertical: ScrollBar { }
-								delegate: Item {
-									width: userPlaylistView.width
+							Component {
+								id: userPlaylistDelegate
+								Item {
+									width: ListView.view.width
 									height: 56
 									Rectangle {
 										anchors.fill: parent
@@ -1020,22 +1095,7 @@ ApplicationWindow {
 													source: getThumb(model.coverUrl, 100)
 													anchors.fill: parent
 													fillMode: Image.PreserveAspectCrop
-													
-													// Temporary disable MultiEffect to debug visibility
-													// layer.enabled: true
-													// layer.effect: MultiEffect {
-													// 	maskEnabled: true
-													// 	maskSource: userPlaylistMask
-													// }
 												}
-												/*
-												Rectangle {
-													id: userPlaylistMask
-													anchors.fill: parent
-													radius: 4
-													visible: false
-												}
-												*/
 											}
 											
 											ColumnLayout {
@@ -1072,6 +1132,128 @@ ApplicationWindow {
 												}
 											}
 										}
+									}
+								}
+							}
+
+							ScrollView {
+								id: userPlaylistScrollView
+								Layout.fillWidth: true
+								Layout.fillHeight: true
+								clip: true
+								ScrollBar.vertical: ScrollBar { }
+
+								property bool createdExpanded: true
+								property bool collectedExpanded: true
+
+								ColumnLayout {
+									width: userPlaylistScrollView.availableWidth
+									spacing: 0
+									
+									// Header: Created
+									Item {
+										Layout.fillWidth: true
+										Layout.preferredHeight: 32
+										visible: createdPlaylistView.count > 0
+										
+										MouseArea {
+											anchors.fill: parent
+											cursorShape: Qt.PointingHandCursor
+											onClicked: userPlaylistScrollView.createdExpanded = !userPlaylistScrollView.createdExpanded
+										}
+
+										RowLayout {
+											anchors.fill: parent
+											anchors.leftMargin: 16
+											anchors.rightMargin: 16
+											spacing: 4
+
+											Text {
+												text: qsTr("创建的歌单") + "(" + createdPlaylistView.count + ")"
+												font.pixelSize: 12
+												color: "#6b7280"
+												font.weight: Font.Bold
+											}
+
+											Image {
+												source: "file:///d:/project/I-love-you/qt-rewrite/ui-asset/black-backgroud/login/下拉.svg"
+												Layout.preferredWidth: 12
+												Layout.preferredHeight: 12
+												fillMode: Image.PreserveAspectFit
+												opacity: 0.6
+												rotation: userPlaylistScrollView.createdExpanded ? 180 : 0
+												Behavior on rotation { NumberAnimation { duration: 200; easing.type: Easing.InOutQuad } }
+											}
+											
+											Item { Layout.fillWidth: true }
+										}
+									}
+
+									ListView {
+										id: createdPlaylistView
+										Layout.fillWidth: true
+										Layout.preferredHeight: userPlaylistScrollView.createdExpanded ? contentHeight : 0
+										opacity: userPlaylistScrollView.createdExpanded ? 1.0 : 0.0
+										visible: opacity > 0
+										interactive: false
+										model: musicController ? musicController.createdPlaylistModel : null
+										delegate: userPlaylistDelegate
+
+										Behavior on Layout.preferredHeight { NumberAnimation { duration: 300; easing.type: Easing.InOutQuad } }
+										Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.InOutQuad } }
+									}
+
+									// Header: Collected
+									Item {
+										Layout.fillWidth: true
+										Layout.preferredHeight: 32
+										visible: collectedPlaylistView.count > 0
+										
+										MouseArea {
+											anchors.fill: parent
+											cursorShape: Qt.PointingHandCursor
+											onClicked: userPlaylistScrollView.collectedExpanded = !userPlaylistScrollView.collectedExpanded
+										}
+
+										RowLayout {
+											anchors.fill: parent
+											anchors.leftMargin: 16
+											anchors.rightMargin: 16
+											spacing: 4
+
+											Text {
+												text: qsTr("收藏的歌单") + "(" + collectedPlaylistView.count + ")"
+												font.pixelSize: 12
+												color: "#6b7280"
+												font.weight: Font.Bold
+											}
+
+											Image {
+												source: "file:///d:/project/I-love-you/qt-rewrite/ui-asset/black-backgroud/login/下拉.svg"
+												Layout.preferredWidth: 12
+												Layout.preferredHeight: 12
+												fillMode: Image.PreserveAspectFit
+												opacity: 0.6
+												rotation: userPlaylistScrollView.collectedExpanded ? 180 : 0
+												Behavior on rotation { NumberAnimation { duration: 200; easing.type: Easing.InOutQuad } }
+											}
+											
+											Item { Layout.fillWidth: true }
+										}
+									}
+
+									ListView {
+										id: collectedPlaylistView
+										Layout.fillWidth: true
+										Layout.preferredHeight: userPlaylistScrollView.collectedExpanded ? contentHeight : 0
+										opacity: userPlaylistScrollView.collectedExpanded ? 1.0 : 0.0
+										visible: opacity > 0
+										interactive: false
+										model: musicController ? musicController.collectedPlaylistModel : null
+										delegate: userPlaylistDelegate
+
+										Behavior on Layout.preferredHeight { NumberAnimation { duration: 300; easing.type: Easing.InOutQuad } }
+										Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.InOutQuad } }
 									}
 								}
 							}
@@ -1160,8 +1342,8 @@ ApplicationWindow {
 										property bool current: index === currentPlaylistIndex
 										property bool hovered: false
                                         property bool held: false
-										color: current ? "#dcfce7" : (hovered || held ? "#f1f5f9" : "#ffffff")
-										border.color: current ? "#22c55e" : "transparent"
+										color: (hovered || held || ListView.isCurrentItem) ? "#f1f5f9" : "#ffffff"
+										border.color: "transparent"
                                         
                                         scale: held ? 1.02 : 1.0
                                         z: held ? 100 : 1
@@ -1171,6 +1353,55 @@ ApplicationWindow {
                                         Drag.source: playlistDelegate
                                         Drag.hotSpot.x: width / 2
                                         Drag.hotSpot.y: height / 2
+
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            enabled: isLoaded
+                                            acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                            onEntered: hovered = true
+                                            onExited: hovered = false
+                                            
+                                            drag.target: playlistDelegate.held ? playlistDelegate : undefined
+                                            drag.axis: Drag.YAxis
+                                            
+                                            onPressAndHold: {
+                                                if (mouse.button === Qt.LeftButton) playlistDelegate.held = true
+                                            }
+                                            onReleased: {
+                                                playlistDelegate.held = false
+                                            }
+                                            
+                                            onClicked: function(mouse) {
+                                                if (playlistDelegate.held) return
+                                                if (!musicController) return
+                                                // Always select the item on click
+                                                playlistView.currentIndex = index
+                                                if (mouse.button === Qt.RightButton) {
+                                                    var cover = coverUrl
+                                                    playlistSongActionPopup.openFor(index, title, artists, cover, playlistDelegate, mouse, "playlist")
+                                                }
+                                            }
+                                            onDoubleClicked: function(mouse) {
+                                                if (playlistDelegate.held) return
+                                                if (!musicController) return
+                                                if (mouse.button === Qt.LeftButton) {
+                                                    musicController.playPlaylistTrack(index)
+                                                    currentPlaylistIndex = index
+                                                }
+                                            }
+                                            
+                                            onPositionChanged: function(mouse) {
+                                                if (playlistDelegate.held) {
+                                                    var targetIndex = playlistView.indexAt(playlistView.width / 2, playlistView.contentY + playlistDelegate.y + mouse.y)
+                                                    if (targetIndex !== -1 && targetIndex !== index) {
+                                                        if (musicController && musicController.playlistModel) {
+                                                            musicController.playlistModel.move(index, targetIndex)
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
 
 										RowLayout {
 											anchors.fill: parent
@@ -1231,59 +1462,96 @@ ApplicationWindow {
 												*/
 											}
 
-											Text {
-												text: isLoaded ? title : qsTr("加载中...")
-												color: isLoaded ? "#111827" : "#9ca3af"
-												font.pixelSize: 14
-												elide: Text.ElideRight
+											ColumnLayout {
 												Layout.fillWidth: true
+												spacing: 2
+												
+												Text {
+													text: isLoaded ? title : qsTr("加载中...")
+													color: (playlistDelegate.current) ? "#22c55e" : (isLoaded ? "#111827" : "#9ca3af")
+													font.pixelSize: 14
+													elide: Text.ElideRight
+													Layout.fillWidth: true
+												}
+												
+												Text {
+													text: artists
+													color: "#6b7280"
+													font.pixelSize: 12
+													elide: Text.ElideRight
+													Layout.fillWidth: true
+												}
 											}
 
-											Text {
-												text: artists
-												color: "#6b7280"
-												font.pixelSize: 13
-												elide: Text.ElideRight
-												Layout.preferredWidth: 220
-											}
-										}
+                                            Rectangle {
+                                                Layout.preferredWidth: 80
+                                                Layout.preferredHeight: 32
+                                                radius: 16
+                                                color: "#f3f4f6"
+                                                
+                                                RowLayout {
+                                                    anchors.fill: parent
+                                                    spacing: 0
+                                                    
+                                                    // Like Button
+                                                    Item {
+                                                        Layout.fillHeight: true
+                                                        Layout.preferredWidth: 40
+                                                        
+                                                        property bool isLiked: false
+                                                        
+                                                        Image {
+                                                            anchors.centerIn: parent
+                                                            width: 20
+                                                            height: 20
+                                                            source: parent.isLiked ? "file:///d:/project/I-love-you/qt-rewrite/ui-asset/black-backgroud/music_like/喜欢.svg" : "file:///d:/project/I-love-you/qt-rewrite/ui-asset/black-backgroud/music_like/not喜欢.svg"
+                                                            fillMode: Image.PreserveAspectFit
+                                                        }
+                                                        MouseArea {
+                                                            anchors.fill: parent
+                                                            cursorShape: Qt.PointingHandCursor
+                                                            onClicked: parent.isLiked = !parent.isLiked
+                                                        }
+                                                    }
+                                                    
+                                                    // Play Button
+                                                    Item {
+                                                        Layout.fillHeight: true
+                                                        Layout.preferredWidth: 40
+                                                        
+                                                        Rectangle {
+                                                            anchors.centerIn: parent
+                                                            width: 28
+                                                            height: 28
+                                                            radius: 14
+                                                            color: playlistDelegate.current ? "#22c55e" : "transparent"
+                                                        }
+                                                        
+                                                        Image {
+                                                            id: playlistPlayIcon
+                                                            anchors.centerIn: parent
+                                                            width: 20
+                                                            height: 20
+                                                            source: "file:///d:/project/I-love-you/qt-rewrite/ui-asset/black-backgroud/播放.svg"
+                                                            fillMode: Image.PreserveAspectFit
+                                                            visible: !playlistDelegate.current
+                                                        }
+                                                        
+                                                        MultiEffect {
+                                                            source: playlistPlayIcon
+                                                            anchors.fill: playlistPlayIcon
+                                                            colorization: 1.0
+                                                            colorizationColor: "#ffffff"
+                                                            visible: playlistDelegate.current
+                                                        }
 
-										MouseArea {
-											anchors.fill: parent
-											hoverEnabled: true
-                                            enabled: isLoaded
-                                            acceptedButtons: Qt.LeftButton | Qt.RightButton
-											onEntered: hovered = true
-											onExited: hovered = false
-                                            
-                                            drag.target: playlistDelegate.held ? playlistDelegate : undefined
-                                            drag.axis: Drag.YAxis
-                                            
-                                            onPressAndHold: {
-                                                if (mouse.button === Qt.LeftButton) playlistDelegate.held = true
-                                            }
-                                            onReleased: {
-                                                playlistDelegate.held = false
-                                            }
-                                            
-											onClicked: function(mouse) {
-                                                if (playlistDelegate.held) return
-												if (!musicController) return
-                                                if (mouse.button === Qt.LeftButton) {
-                                                    musicController.playPlaylistTrack(index)
-                                                    currentPlaylistIndex = index
-                                                } else if (mouse.button === Qt.RightButton) {
-                                                    var cover = coverUrl
-                                                    playlistSongActionPopup.openFor(index, title, artists, cover, playlistDelegate, mouse, "playlist")
-                                                }
-											}
-                                            
-                                            onPositionChanged: function(mouse) {
-                                                if (playlistDelegate.held) {
-                                                    var targetIndex = playlistView.indexAt(playlistView.width / 2, playlistView.contentY + playlistDelegate.y + mouse.y)
-                                                    if (targetIndex !== -1 && targetIndex !== index) {
-                                                        if (musicController && musicController.playlistModel) {
-                                                            musicController.playlistModel.move(index, targetIndex)
+                                                        MouseArea {
+                                                            anchors.fill: parent
+                                                            cursorShape: Qt.PointingHandCursor
+                                                            onClicked: {
+                                                                if (musicController) musicController.playPlaylistTrack(index)
+                                                                currentPlaylistIndex = index
+                                                            }
                                                         }
                                                     }
                                                 }
@@ -1733,8 +2001,8 @@ ApplicationWindow {
 									property bool current: musicController && index === musicController.currentSongIndex
 									property bool hovered: false
 									property bool held: false
-									color: current ? "#dcfce7" : (hovered || held ? "#f1f5f9" : "#ffffff")
-									border.color: current ? "#22c55e" : "transparent"
+									color: (hovered || held || ListView.isCurrentItem) ? "#f1f5f9" : "#ffffff"
+									border.color: "transparent"
                                     
                                     scale: held ? 1.05 : 1.0
                                     z: held ? 100 : 1
@@ -1771,6 +2039,10 @@ ApplicationWindow {
                                         }
                                         
                                         onClicked: function(mouse) {
+                                            // Always select the item on click
+                                            queueListView.currentIndex = index
+                                        }
+                                        onDoubleClicked: function(mouse) {
                                             if (mouse.button === Qt.LeftButton && !delegateRoot.held) {
                                                 if (musicController) musicController.playIndex(index)
                                                 queueDrawer.close()
@@ -1839,20 +2111,101 @@ ApplicationWindow {
 											}
 										}
 
-										Text {
-											text: title
-											color: "#111827"
-											font.pixelSize: 13
-											elide: Text.ElideRight
-											Layout.fillWidth: true
-										}
-										Text {
-											text: formatMs(duration)
-											color: "#6b7280"
-											font.pixelSize: 12
-											Layout.preferredWidth: 58
-											horizontalAlignment: Text.AlignRight
-										}
+                                        ColumnLayout {
+                                            Layout.fillWidth: true
+                                            spacing: 2
+                                            
+                                            Text {
+                                                text: title
+                                                color: delegateRoot.current ? "#22c55e" : "#111827"
+                                                font.pixelSize: 13
+                                                elide: Text.ElideRight
+                                                Layout.fillWidth: true
+                                            }
+                                            
+                                            Text {
+                                                text: artists
+                                                color: "#6b7280"
+                                                font.pixelSize: 12
+                                                elide: Text.ElideRight
+                                                Layout.fillWidth: true
+                                            }
+                                        }
+
+                                        Rectangle {
+                                            Layout.preferredWidth: 80
+                                            Layout.preferredHeight: 32
+                                            radius: 16
+                                            color: "#f3f4f6"
+                                            
+                                            RowLayout {
+                                                anchors.fill: parent
+                                                spacing: 0
+                                                
+                                                // Like Button
+                                                Item {
+                                                    Layout.fillHeight: true
+                                                    Layout.preferredWidth: 40
+                                                    
+                                                    property bool isLiked: false
+                                                    
+                                                    Image {
+                                                        anchors.centerIn: parent
+                                                        width: 20
+                                                        height: 20
+                                                        source: parent.isLiked ? "file:///d:/project/I-love-you/qt-rewrite/ui-asset/black-backgroud/music_like/喜欢.svg" : "file:///d:/project/I-love-you/qt-rewrite/ui-asset/black-backgroud/music_like/not喜欢.svg"
+                                                        fillMode: Image.PreserveAspectFit
+                                                    }
+                                                    MouseArea {
+                                                        anchors.fill: parent
+                                                        cursorShape: Qt.PointingHandCursor
+                                                        onClicked: parent.isLiked = !parent.isLiked
+                                                    }
+                                                }
+                                                
+                                                // Play Button
+                                                Item {
+                                                    Layout.fillHeight: true
+                                                    Layout.preferredWidth: 40
+                                                    
+                                                    Rectangle {
+                                                        anchors.centerIn: parent
+                                                        width: 28
+                                                        height: 28
+                                                        radius: 14
+                                                        color: delegateRoot.current ? "#22c55e" : "transparent"
+                                                    }
+                                                    
+                                                    Image {
+                                                        id: queuePlayIcon
+                                                        anchors.centerIn: parent
+                                                        width: 20
+                                                        height: 20
+                                                        source: "file:///d:/project/I-love-you/qt-rewrite/ui-asset/black-backgroud/播放.svg"
+                                                        fillMode: Image.PreserveAspectFit
+                                                        visible: !delegateRoot.current
+                                                    }
+                                                    
+                                                    MultiEffect {
+                                                        source: queuePlayIcon
+                                                        anchors.fill: queuePlayIcon
+                                                        colorization: 1.0
+                                                        colorizationColor: "#ffffff"
+                                                        visible: delegateRoot.current
+                                                    }
+
+                                                    MouseArea {
+                                                        anchors.fill: parent
+                                                        cursorShape: Qt.PointingHandCursor
+                                                        onClicked: {
+                                                            if (musicController) musicController.playIndex(index)
+                                                            // queueDrawer.close() // Optional, keeping open for now
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
                                         Item {
                                              Layout.preferredWidth: 32
                                              Layout.preferredHeight: 32

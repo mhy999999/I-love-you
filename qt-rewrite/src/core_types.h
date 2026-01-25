@@ -64,6 +64,7 @@ struct PlaylistMeta
 	QUrl coverUrl;
 	QString description;
 	int trackCount = 0;
+	QString creatorId;
 };
 
 struct PlaylistTracksPage

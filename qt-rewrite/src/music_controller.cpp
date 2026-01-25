@@ -485,6 +485,16 @@ PlaylistListModel *MusicController::userPlaylistModel()
 	return &m_userPlaylistModel;
 }
 
+PlaylistListModel *MusicController::createdPlaylistModel()
+{
+	return &m_createdPlaylistModel;
+}
+
+PlaylistListModel *MusicController::collectedPlaylistModel()
+{
+	return &m_collectedPlaylistModel;
+}
+
 bool MusicController::loading() const
 {
 	return m_loading;
@@ -1187,7 +1197,7 @@ void MusicController::loadUserPlaylist(const QString &uid)
 	m_userPlaylistRequestId++;
 	quint64 reqId = m_userPlaylistRequestId;
 
-	userPlaylistToken = neteaseProvider->userPlaylist(targetUid, 100, 0, [this, reqId](Result<QList<PlaylistMeta>> result) {
+	userPlaylistToken = neteaseProvider->userPlaylist(targetUid, 1000, 0, [this, reqId, targetUid](Result<QList<PlaylistMeta>> result) {
 		if (reqId != m_userPlaylistRequestId)
 			return;
 		userPlaylistToken.clear();
@@ -1199,6 +1209,18 @@ void MusicController::loadUserPlaylist(const QString &uid)
 		}
 
 		m_userPlaylistModel.setPlaylists(result.value);
+
+		QList<PlaylistMeta> created;
+		QList<PlaylistMeta> collected;
+		for (const auto &p : result.value) {
+			if (p.creatorId == targetUid) {
+				created.append(p);
+			} else {
+				collected.append(p);
+			}
+		}
+		m_createdPlaylistModel.setPlaylists(created);
+		m_collectedPlaylistModel.setPlaylists(collected);
 	});
 }
 

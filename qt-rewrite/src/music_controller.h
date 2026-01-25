@@ -44,6 +44,8 @@ class MusicController : public QObject
 	Q_PROPERTY(SongListModel *playlistModel READ playlistModel CONSTANT)
 	Q_PROPERTY(SongListModel *queueModel READ queueModel CONSTANT)
 	Q_PROPERTY(PlaylistListModel *userPlaylistModel READ userPlaylistModel CONSTANT)
+	Q_PROPERTY(PlaylistListModel *createdPlaylistModel READ createdPlaylistModel CONSTANT)
+	Q_PROPERTY(PlaylistListModel *collectedPlaylistModel READ collectedPlaylistModel CONSTANT)
 	Q_PROPERTY(bool playlistLoading READ playlistLoading NOTIFY playlistLoadingChanged)
 	Q_PROPERTY(QString playlistName READ playlistName NOTIFY playlistNameChanged)
 	Q_PROPERTY(bool playlistHasMore READ playlistHasMore NOTIFY playlistHasMoreChanged)
@@ -95,6 +97,8 @@ public:
 	SongListModel *playlistModel();
 	SongListModel *queueModel() const;
 	PlaylistListModel *userPlaylistModel();
+	PlaylistListModel *createdPlaylistModel();
+	PlaylistListModel *collectedPlaylistModel();
 	bool playlistLoading() const;
 	QString playlistName() const;
 	bool playlistHasMore() const;
@@ -182,6 +186,8 @@ private:
 	SongListModel m_playlistModel;
 	SongListModel m_queueModel;
 	PlaylistListModel m_userPlaylistModel;
+	PlaylistListModel m_createdPlaylistModel;
+	PlaylistListModel m_collectedPlaylistModel;
 	QMediaPlayer m_player;
 	DiskCache imageCache;
 	DiskCache lyricCache;
