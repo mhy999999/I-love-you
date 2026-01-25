@@ -153,44 +153,90 @@ Item {
                 Layout.bottomMargin: 4
                 
                 Button {
-                    text: "播放全部"
-                    icon.source: "qrc:/qt/qml/content/images/play.svg" // Replace with actual icon if available or just text
-                    highlighted: true
+                    Layout.preferredHeight: 32
                     background: Rectangle {
                         color: "#ec4141"
-                        radius: 18
+                        radius: 16
                     }
                     contentItem: Row {
                         spacing: 4
-                        Text { text: "+"; color: "white"; font.pixelSize: 18 }
-                        Text { text: "播放全部"; color: "white"; anchors.verticalCenter: parent.verticalCenter }
+                        anchors.centerIn: parent
+                        Text { text: "+"; color: "white"; font.pixelSize: 16 }
+                        Text { text: "播放全部"; color: "white"; font.pixelSize: 14 }
                     }
-                    onClicked: {
-                        // Logic to play all
-                    }
-                }
-                
-                Button {
-                    text: "收藏(" + formatCount(musicController.playlistSubscribedCount) + ")"
-                    background: Rectangle {
-                        border.color: "#d9d9d9"
-                        radius: 18
+                    onClicked: musicController.playAll()
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: parent.onClicked()
                     }
                 }
                 
                 Button {
-                    text: "分享(" + formatCount(musicController.playlistShareCount) + ")"
+                    Layout.preferredHeight: 32
                     background: Rectangle {
+                        color: musicController.playlistSubscribed ? "#f2f2f2" : "white"
                         border.color: "#d9d9d9"
-                        radius: 18
+                        radius: 16
+                    }
+                    contentItem: Row {
+                        spacing: 4
+                        anchors.centerIn: parent
+                        Text { 
+                            text: (musicController.playlistSubscribed ? "已收藏" : "收藏") + "(" + formatCount(musicController.playlistSubscribedCount) + ")"
+                            color: "#333333" 
+                            font.pixelSize: 14 
+                        }
+                    }
+                    onClicked: musicController.togglePlaylistSubscribe()
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: parent.onClicked()
                     }
                 }
                 
                 Button {
-                    text: "下载全部"
+                    Layout.preferredHeight: 32
                     background: Rectangle {
                         border.color: "#d9d9d9"
-                        radius: 18
+                        radius: 16
+                    }
+                    contentItem: Row {
+                        spacing: 4
+                        anchors.centerIn: parent
+                        Text { 
+                            text: "分享(" + formatCount(musicController.playlistShareCount) + ")"
+                            color: "#333333" 
+                            font.pixelSize: 14 
+                        }
+                    }
+                    onClicked: musicController.sharePlaylist()
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: parent.onClicked()
+                    }
+                }
+                
+                Button {
+                    Layout.preferredHeight: 32
+                    background: Rectangle {
+                        border.color: "#d9d9d9"
+                        radius: 16
+                    }
+                    contentItem: Row {
+                        spacing: 4
+                        anchors.centerIn: parent
+                        Text { 
+                            text: "下载全部"
+                            color: "#333333" 
+                            font.pixelSize: 14 
+                        }
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
                     }
                 }
             }

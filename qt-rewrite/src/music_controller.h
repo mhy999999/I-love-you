@@ -170,7 +170,10 @@ public:
 	Q_INVOKABLE void createPlaylist(const QString &name, const QString &type = "NORMAL", bool privacy = false);
 	Q_INVOKABLE void deletePlaylist(const QString &playlistIds);
 	Q_INVOKABLE void subscribePlaylist(const QString &playlistId, bool subscribe);
+	Q_INVOKABLE void togglePlaylistSubscribe();
 	Q_INVOKABLE void loadPlaylistTracks(const QString &playlistId);
+	Q_INVOKABLE void playAll();
+	Q_INVOKABLE void sharePlaylist();
 
 	Q_INVOKABLE void onPlaylistRowRequested(int index);
 	Q_INVOKABLE void loadNextSearchPage();
@@ -279,6 +282,7 @@ private:
     QUrl m_playlistCreatorAvatar;
     qint64 m_playlistCreateTime = 0;
     qint64 m_playlistPlayCount = 0;
+    bool m_playlistSubscribed = false;
     qint64 m_playlistSubscribedCount = 0;
     qint64 m_playlistShareCount = 0;
 	int m_playlistTotal = 0;

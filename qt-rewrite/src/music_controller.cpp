@@ -2,6 +2,8 @@
 #include "music_controller.h"
 
 #include <QCoreApplication>
+#include <QGuiApplication>
+#include <QClipboard>
 #include <QAudioOutput>
 #include <QDir>
 #include <QElapsedTimer>
@@ -1458,13 +1460,42 @@ void MusicController::deletePlaylist(const QString &playlistIds)
 
 void MusicController::subscribePlaylist(const QString &playlistId, bool subscribe)
 {
-    providerManager.subscribePlaylist(playlistId, subscribe, [this](Result<bool> result) {
+    providerManager.subscribePlaylist(playlistId, subscribe, [this, playlistId, subscribe](Result<bool> result) {
         if (!result.ok) {
             emit errorOccurred(result.error.message);
         } else {
+            if (m_playlistId == playlistId) {
+                m_playlistSubscribed = subscribe;
+                if (subscribe) m_playlistSubscribedCount++;
+                else if (m_playlistSubscribedCount > 0) m_playlistSubscribedCount--;
+                emit playlistDetailChanged();
+            }
             loadUserPlaylist();
         }
     });
+}
+
+void MusicController::togglePlaylistSubscribe()
+{
+    if (m_playlistId.isEmpty()) return;
+    subscribePlaylist(m_playlistId, !m_playlistSubscribed);
+}
+
+void MusicController::playAll()
+{
+    if (m_playlistModel.songs().isEmpty()) return;
+    playPlaylistTrack(0);
+}
+
+void MusicController::sharePlaylist()
+{
+    if (m_playlistId.isEmpty()) return;
+    QString link = QStringLiteral("https://music.163.com/#/playlist?id=%1").arg(m_playlistId);
+    QClipboard *clipboard = QGuiApplication::clipboard();
+    if (clipboard) {
+        clipboard->setText(link);
+        emit toastMessage(QStringLiteral("链接已复制到剪贴板"));
+    }
 }
 
 void MusicController::adjustLyricOffsetMs(qint64 deltaMs)

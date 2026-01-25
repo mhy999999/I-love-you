@@ -68,6 +68,7 @@ struct PlaylistMeta
     
     // Detailed info
     QStringList tags;
+    bool subscribed = false;
     qint64 createTime = 0;
     qint64 updateTime = 0;
     qint64 playCount = 0;

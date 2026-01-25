@@ -1,35 +1,26 @@
-D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C3646: ��creator��: δ֪��д˵����
-D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C4430: ȱ������˵���� - �ٶ�Ϊ int��ע��: C++ ��֧��Ĭ�� int
-D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C3646: ��creator��: δ֪��д˵����
-D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C4430: ȱ������˵���� - �ٶ�Ϊ int��ע��: C++ ��֧��Ĭ�� int
-D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C3646: ��creator��: δ֪��д˵����
-D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C4430: ȱ������˵���� - �ٶ�Ϊ int��ע��: C++ ��֧��Ĭ�� int
-D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C3646: ��creator��: δ֪��д˵����
-D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C4430: ȱ������˵���� - �ٶ�Ϊ int��ע��: C++ ��֧��Ĭ�� int
-D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C3646: ��creator��: δ֪��д˵����
-D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C4430: ȱ������˵���� - �ٶ�Ϊ int��ע��: C++ ��֧��Ĭ�� int
-D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C3646: ��creator��: δ֪��д˵����
-D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C4430: ȱ������˵���� - �ٶ�Ϊ int��ע��: C++ ��֧��Ĭ�� int
-D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C3646: ��creator��: δ֪��д˵����
-D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C4430: ȱ������˵���� - �ٶ�Ϊ int��ע��: C++ ��֧��Ĭ�� int
-D:\project\I-love-you\qt-rewrite\src\netease_provider.cpp:1831: error: C2039: "creator": ���� "App::PlaylistMeta" �ĳ�Ա
-D:\project\I-love-you\qt-rewrite\src\netease_provider.cpp(1831): error C2039: "creator": ���� "App::PlaylistMeta" �ĳ�Ա
-D:\project\I-love-you\qt-rewrite\src\core_types.h(60): note: �μ���App::PlaylistMeta��������
-D:\project\I-love-you\qt-rewrite\src\netease_provider.cpp:1832: error: C2039: "creator": ���� "App::PlaylistMeta" �ĳ�Ա
-D:\project\I-love-you\qt-rewrite\src\netease_provider.cpp(1832): error C2039: "creator": ���� "App::PlaylistMeta" �ĳ�Ա
-D:\project\I-love-you\qt-rewrite\src\core_types.h(60): note: �μ���App::PlaylistMeta��������
-D:\project\I-love-you\qt-rewrite\src\netease_provider.cpp:1833: error: C2039: "creator": ���� "App::PlaylistMeta" �ĳ�Ա
-D:\project\I-love-you\qt-rewrite\src\netease_provider.cpp(1833): error C2039: "creator": ���� "App::PlaylistMeta" �ĳ�Ա
-D:\project\I-love-you\qt-rewrite\src\core_types.h(60): note: �μ���App::PlaylistMeta��������
-D:\project\I-love-you\qt-rewrite\src\netease_provider.cpp:1834: error: C2039: "creator": ���� "App::PlaylistMeta" �ĳ�Ա
-D:\project\I-love-you\qt-rewrite\src\netease_provider.cpp(1834): error C2039: "creator": ���� "App::PlaylistMeta" �ĳ�Ա
-D:\project\I-love-you\qt-rewrite\src\core_types.h(60): note: �μ���App::PlaylistMeta��������
-D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C3646: ��creator��: δ֪��д˵����
-D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C4430: ȱ������˵���� - �ٶ�Ϊ int��ע��: C++ ��֧��Ĭ�� int
-D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C3646: ��creator��: δ֪��д˵����
-D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C4430: ȱ������˵���� - �ٶ�Ϊ int��ע��: C++ ��֧��Ĭ�� int
-D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C3646: ��creator��: δ֪��д˵����
-D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C4430: ȱ������˵���� - �ٶ�Ϊ int��ע��: C++ ��֧��Ĭ�� int
-D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C3646: ��creator��: δ֪��д˵����
-D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C4430: ȱ������˵���� - �ٶ�Ϊ int��ע��: C++ ��֧��Ĭ�� int
+D:\project\I-love-you\qt-rewrite\src\music_controller.cpp:1476: error: C2039: "togglePlaylistSubscribe": ���� "App::MusicController" �ĳ�Ա
+D:\project\I-love-you\qt-rewrite\src\music_controller.cpp(1476): error C2039: "togglePlaylistSubscribe": ���� "App::MusicController" �ĳ�Ա
+D:\project\I-love-you\qt-rewrite\src\music_controller.h(25): note: �μ���App::MusicController��������
+D:\project\I-love-you\qt-rewrite\src\music_controller.cpp:1478: error: C2065: ��m_playlistId��: δ�����ı�ʶ��
+D:\project\I-love-you\qt-rewrite\src\music_controller.cpp:1479: error: C2065: ��m_playlistId��: δ�����ı�ʶ��
+D:\project\I-love-you\qt-rewrite\src\music_controller.cpp:1479: error: C2065: ��m_playlistSubscribed��: δ�����ı�ʶ��
+D:\project\I-love-you\qt-rewrite\src\music_controller.cpp:1479: error: C3861: ��subscribePlaylist��: �Ҳ�����ʶ��
+D:\project\I-love-you\qt-rewrite\src\music_controller.cpp:1482: error: C2039: "playAll": ���� "App::MusicController" �ĳ�Ա
+D:\project\I-love-you\qt-rewrite\src\music_controller.cpp(1482): error C2039: "playAll": ���� "App::MusicController" �ĳ�Ա
+D:\project\I-love-you\qt-rewrite\src\music_controller.h(25): note: �μ���App::MusicController��������
+D:\project\I-love-you\qt-rewrite\src\music_controller.cpp:1484: error: C2065: ��m_playlistModel��: δ�����ı�ʶ��
+D:\project\I-love-you\qt-rewrite\src\music_controller.cpp:1485: error: C3861: ��playPlaylistTrack��: �Ҳ�����ʶ��
+D:\project\I-love-you\qt-rewrite\src\music_controller.cpp:1488: error: C2039: "sharePlaylist": ���� "App::MusicController" �ĳ�Ա
+D:\project\I-love-you\qt-rewrite\src\music_controller.cpp(1488): error C2039: "sharePlaylist": ���� "App::MusicController" �ĳ�Ա
+D:\project\I-love-you\qt-rewrite\src\music_controller.h(25): note: �μ���App::MusicController��������
+D:\project\I-love-you\qt-rewrite\src\music_controller.cpp:1490: error: C2065: ��m_playlistId��: δ�����ı�ʶ��
+D:\project\I-love-you\qt-rewrite\src\music_controller.cpp:1491: error: C2065: ��m_playlistId��: δ�����ı�ʶ��
+D:\project\I-love-you\qt-rewrite\src\music_controller.cpp:1492: error: C2027: ʹ����δ�������͡�QGuiApplication��
+D:\project\I-love-you\qt-rewrite\src\music_controller.cpp(1492): error C2027: ʹ����δ�������͡�QGuiApplication��
+D:\StudyApp\QT\qt_app\6.10.0\msvc2022_64\include\QtCore/qcoreapplication.h(246): note: �μ���QGuiApplication��������
+D:\project\I-love-you\qt-rewrite\src\music_controller.cpp:1492: error: C2064: �������Ϊ���� 0 �������ĺ���
+D:\project\I-love-you\qt-rewrite\src\music_controller.cpp:1494: error: C2027: ʹ����δ�������͡�QClipboard��
+D:\project\I-love-you\qt-rewrite\src\music_controller.cpp(1494): error C2027: ʹ����δ�������͡�QClipboard��
+D:\StudyApp\QT\qt_app\6.10.0\msvc2022_64\include\QtGui/qwindowdefs.h(42): note: �μ���QClipboard��������
+D:\project\I-love-you\qt-rewrite\src\music_controller.cpp:1495: error: C3861: ��toastMessage��: �Ҳ�����ʶ��
 :-1: error: ninja: build stopped: subcommand failed.

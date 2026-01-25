@@ -1750,6 +1750,7 @@ Result<PlaylistMeta> NeteaseProvider::parsePlaylistDetail(const QByteArray &body
         meta.tags.append(v.toString());
     }
     
+    meta.subscribed = playlistObj.value(QStringLiteral("subscribed")).toBool();
     meta.createTime = playlistObj.value(QStringLiteral("createTime")).toVariant().toLongLong();
     meta.updateTime = playlistObj.value(QStringLiteral("updateTime")).toVariant().toLongLong();
     meta.playCount = playlistObj.value(QStringLiteral("playCount")).toVariant().toLongLong();
