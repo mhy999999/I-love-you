@@ -32,9 +32,11 @@ public:
 	bool supportsPlaylistTracks() const override;
     bool supportsUserPlaylist() const override { return true; }
     bool supportsSearchSuggest() const override { return true; }
+    bool supportsHotSearch() const override { return true; }
 
     QSharedPointer<RequestToken> search(const QString &keyword, int limit, int offset, const SearchCallback &callback) override;
     QSharedPointer<RequestToken> searchSuggest(const QString &keyword, const std::function<void(Result<QStringList>)> &callback) override;
+    QSharedPointer<RequestToken> hotSearch(const HotSearchCallback &callback) override;
     QSharedPointer<RequestToken> songDetail(const QString &songId, const SongDetailCallback &callback) override;
 	QSharedPointer<RequestToken> playUrl(const QString &songId, const PlayUrlCallback &callback) override;
 	QSharedPointer<RequestToken> lyric(const QString &songId, const LyricCallback &callback) override;
@@ -44,6 +46,14 @@ public:
     
     bool supportsPlaylistTracksOp() const override { return true; }
     QSharedPointer<RequestToken> playlistTracksOp(const QString &op, const QString &playlistId, const QString &trackIds, const BoolCallback &callback) override;
+
+    bool supportsPlaylistCreate() const override { return true; }
+    bool supportsPlaylistDelete() const override { return true; }
+    bool supportsPlaylistSubscribe() const override { return true; }
+
+    QSharedPointer<RequestToken> createPlaylist(const QString &name, const QString &type, bool privacy, const BoolCallback &callback) override;
+    QSharedPointer<RequestToken> deletePlaylist(const QString &playlistIds, const BoolCallback &callback) override;
+    QSharedPointer<RequestToken> subscribePlaylist(const QString &playlistId, bool subscribe, const BoolCallback &callback) override;
 
 	QSharedPointer<RequestToken> userPlaylist(const QString &uid, int limit, int offset, const UserPlaylistCallback &callback);
 
@@ -84,6 +94,7 @@ private:
 	Result<LoginQrCheck> parseLoginQrCheck(const QByteArray &body) const;
 	Result<UserProfile> parseLoginResult(const QByteArray &body) const;
 	Result<QList<PlaylistMeta>> parseUserPlaylist(const QByteArray &body) const;
+    Result<QList<HotSearchItem>> parseHotSearch(const QByteArray &body) const;
 };
 
 }

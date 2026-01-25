@@ -369,9 +369,19 @@ ApplicationWindow {
 				}
 			}
 
-			Item {
-				Layout.fillWidth: true
-				Layout.fillHeight: true
+            Item {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                
+                onVisibleChanged: {
+                    if (!visible) {
+                        if (musicController) musicController.clearSearch()
+                        searchInput.text = ""
+                        searchInput.focus = false
+                        searchSuggestPopup.close()
+                    }
+                }
+
 				ColumnLayout {
 					anchors.fill: parent
 					spacing: 12
@@ -393,16 +403,242 @@ ApplicationWindow {
                                 placeholderText: qsTr("搜索歌曲关键词")
                                 font.pixelSize: 14
                                 color: "#111827"
+                                selectByMouse: true
                                 background: Rectangle {
                                     radius: 6
                                     color: "#ffffff"
-                                    border.color: "#cbd5e1"
+                                    border.color: searchInput.activeFocus ? "#3b82f6" : (searchCursorArea.containsMouse ? "#94a3b8" : "#cbd5e1")
                                     border.width: 1
                                 }
+                                
                                 onAccepted: if (musicController) musicController.search(text)
+                                onActiveFocusChanged: {
+                                    if (activeFocus) {
+                                        if (text.length === 0) {
+                                            if (musicController) musicController.loadHotSearch()
+                                        } else {
+                                            if (musicController) musicController.searchSuggest(text)
+                                        }
+                                    }
+                                }
                                 onTextChanged: {
-                                    if (musicController && text.length > 0) {
-                                        musicController.searchSuggest(text)
+                                    if (musicController) {
+                                        if (text.length > 0) {
+                                            musicController.searchSuggest(text)
+                                        } else {
+                                            musicController.loadHotSearch()
+                                        }
+                                    }
+                                }
+                                Popup {
+                                    id: hotSearchPopup
+                                    y: parent.height + 4
+                                    width: parent.width
+                                    height: 480 // 限制高度
+                                    padding: 4
+                                    closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+                                    onClosed: searchInput.focus = false
+                                    visible: searchInput.activeFocus && searchInput.text.length === 0 && musicController && (musicController.hotSearchItems.length > 0 || musicController.searchHistory.length > 0)
+                                    background: Rectangle {
+                                        color: "#ffffff"
+                                        radius: 8
+                                        border.color: "#e2e8f0"
+                                        border.width: 1
+                                        layer.enabled: true
+                                        layer.effect: MultiEffect {
+                                            shadowEnabled: true
+                                            shadowColor: "#40000000"
+                                            shadowBlur: 1.0
+                                            shadowHorizontalOffset: 0
+                                            shadowVerticalOffset: 4
+                                        }
+                                    }
+                                    contentItem: ScrollView {
+                                        id: searchScrollView
+                                        clip: true
+                                        contentWidth: availableWidth
+                                        ScrollBar.vertical: ScrollBar {
+                                            policy: ScrollBar.AlwaysOn
+                                            active: true
+                                        }
+                                        
+                                        ColumnLayout {
+                                            width: parent.width
+                                            spacing: 16
+                                            
+                                            // Search History Section
+                                            ColumnLayout {
+                                                Layout.fillWidth: true
+                                                visible: musicController && musicController.searchHistory.length > 0
+                                                spacing: 12
+                                                Layout.bottomMargin: 8
+                                                
+                                                RowLayout {
+                                                    Layout.fillWidth: true
+                                                    Text {
+                                                        text: qsTr("搜索历史")
+                                                        font.pixelSize: 14
+                                                        color: "#94a3b8" // slate-400
+                                                        Layout.fillWidth: true
+                                                    }
+                                                    Button {
+                                                        flat: true
+                                                        icon.name: "edit-delete"
+                                                        // Fallback text icon if icon.name not supported well
+                                                        text: "🗑️"
+                                                        font.pixelSize: 14
+                                                        palette.buttonText: "#94a3b8"
+                                                        Layout.preferredHeight: 24
+                                                        Layout.preferredWidth: 24
+                                                        background: Item {}
+                                                        onClicked: musicController.clearSearchHistory()
+                                                    }
+                                                }
+                                                
+                                                Flow {
+                                                    Layout.fillWidth: true
+                                                    spacing: 8
+                                                    
+                                                    Repeater {
+                                                        model: musicController ? musicController.searchHistory : []
+                                                        delegate: Rectangle {
+                                                            id: historyTag
+                                                            height: 30
+                                                            width: historyText.implicitWidth + 24
+                                                            radius: 15
+                                                            color: historyMouseArea.containsMouse ? "#e2e8f0" : "#f1f5f9"
+                                                            border.color: "#cbd5e1"
+                                                            border.width: 1
+                                                            
+                                                            Text {
+                                                                id: historyText
+                                                                text: modelData
+                                                                anchors.centerIn: parent
+                                                                color: "#334155" // slate-700
+                                                                font.pixelSize: 13
+                                                            }
+                                                            
+                                                            MouseArea {
+                                                                id: historyMouseArea
+                                                                anchors.fill: parent
+                                                                cursorShape: Qt.PointingHandCursor
+                                                                hoverEnabled: true
+                                                                onClicked: {
+                                                                    searchInput.text = modelData
+                                                                    musicController.search(modelData)
+                                                                    hotSearchPopup.close()
+                                                                    searchInput.focus = false
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+                                            // Hot Search Section
+                                            ColumnLayout {
+                                                Layout.fillWidth: true
+                                                spacing: 8
+                                                
+                                                Text {
+                                                    text: qsTr("热搜榜")
+                                                    font.pixelSize: 14
+                                                    color: "#94a3b8" // slate-400
+                                                }
+                                                
+                                                ListView {
+                                                    id: hotSearchListView
+                                                    Layout.fillWidth: true
+                                                    implicitHeight: contentHeight
+                                                    interactive: false // Let ScrollView handle scrolling
+                                                    model: musicController ? musicController.hotSearchItems : []
+                                                    delegate: ItemDelegate {
+                                                        id: hotSearchDelegate
+                                                        width: hotSearchListView.width
+                                                        height: 56
+                                                        padding: 0
+                                                        leftPadding: 16
+                                                        rightPadding: 16
+                                                        
+                                                        contentItem: RowLayout {
+                                                            spacing: 16
+                                                            
+                                                            // 序号
+                                                            Text {
+                                                                text: index + 1
+                                                                font.pixelSize: 18
+                                                                font.bold: index < 3
+                                                                color: index < 3 ? "#ef4444" : "#94a3b8"
+                                                                Layout.preferredWidth: 32
+                                                                horizontalAlignment: Text.AlignLeft
+                                                                Layout.alignment: Qt.AlignVCenter
+                                                            }
+                                                            
+                                                            // 内容列
+                                                            ColumnLayout {
+                                                                Layout.fillWidth: true
+                                                                Layout.alignment: Qt.AlignVCenter
+                                                                spacing: 4
+                                                                
+                                                                RowLayout {
+                                                                    spacing: 8
+                                                                    Layout.fillWidth: true
+                                                                    
+                                                                    Text {
+                                                                        text: modelData.searchWord
+                                                                        font.pixelSize: 15
+                                                                        font.bold: true
+                                                                        color: "#1e293b"
+                                                                        elide: Text.ElideRight
+                                                                    }
+                                                                    
+                                                                    Image {
+                                                                        visible: modelData.iconUrl !== "" && status === Image.Ready
+                                                                        source: modelData.iconUrl
+                                                                        sourceSize.height: 14
+                                                                        fillMode: Image.PreserveAspectFit
+                                                                        Layout.preferredHeight: 14
+                                                                    }
+                                                                    
+                                                                    Item { Layout.fillWidth: true }
+                                                                }
+                                                                
+                                                                Text {
+                                                                    text: modelData.content
+                                                                    font.pixelSize: 12
+                                                                    color: "#64748b"
+                                                                    elide: Text.ElideRight
+                                                                    Layout.fillWidth: true
+                                                                    visible: modelData.content !== ""
+                                                                }
+                                                            }
+                                                            
+                                                            // 热度分数 (右对齐)
+                                                            Text {
+                                                                text: modelData.score
+                                                                font.pixelSize: 12
+                                                                color: "#cbd5e1"
+                                                                Layout.alignment: Qt.AlignVCenter
+                                                                Layout.preferredWidth: 60
+                                                                horizontalAlignment: Text.AlignRight
+                                                            }
+                                                        }
+
+                                                        background: Rectangle {
+                                                            color: hotSearchDelegate.hovered ? "#f1f5f9" : "transparent"
+                                                            radius: 8
+                                                        }
+
+                                                        onClicked: {
+                                                            searchInput.text = modelData.searchWord
+                                                            musicController.search(modelData.searchWord)
+                                                            hotSearchPopup.close()
+                                                            searchInput.focus = false
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                                 Popup {
@@ -411,6 +647,7 @@ ApplicationWindow {
                                     width: parent.width
                                     padding: 4
                                     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+                                    onClosed: searchInput.focus = false
                                     visible: searchInput.activeFocus && searchInput.text.length > 0 && musicController && musicController.searchSuggestions.length > 0
                                     background: Rectangle {
                                         color: "#ffffff"
@@ -460,15 +697,14 @@ ApplicationWindow {
                                     }
                                 }
                             }
-							Text {
-								text: searchInput.placeholderText
-								color: "#6b7280"
-								anchors.verticalCenter: parent.verticalCenter
-								anchors.left: parent.left
-								anchors.leftMargin: 8
-								visible: searchInput.text.length === 0
-								elide: Text.ElideRight
-							}
+
+                            MouseArea {
+                                id: searchCursorArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.IBeamCursor
+                                acceptedButtons: Qt.NoButton
+                            }
 						}
 						Button {
 							text: qsTr("搜索")
@@ -626,7 +862,10 @@ ApplicationWindow {
                                     var TLx = x; var TLy = y
                                     var dxTL = TLx - clickX; var dyTL = TLy - clickY
                                 }
-                                onClosed: logActive = false
+                                onClosed: {
+                                    logActive = false
+                                    searchInput.focus = false
+                                }
                                 function openFor(index, title, artists, coverUrl, originItem, mouse, type) {
                                     songIndex = index; songTitle = title; songArtists = artists; songCover = coverUrl
                                     sourceType = type || "search"
@@ -692,6 +931,7 @@ ApplicationWindow {
                                 }
 
 								delegate: Rectangle {
+                                    id: searchDelegate
 									width: listView.width
 									height: 56
 									radius: 10
@@ -828,7 +1068,7 @@ ApplicationWindow {
                                                         width: 28
                                                         height: 28
                                                         radius: 14
-                                                        color: searchDelegate.isPlayingThis ? "#22c55e" : "transparent"
+                                                        color: isPlayingThis ? "#22c55e" : "transparent"
                                                     }
                                                     
                                                     Image {
@@ -838,7 +1078,7 @@ ApplicationWindow {
                                                         height: 20
                                                         source: "file:///d:/project/I-love-you/qt-rewrite/ui-asset/black-backgroud/播放.svg"
                                                         fillMode: Image.PreserveAspectFit
-                                                        visible: !searchDelegate.isPlayingThis
+                                                        visible: !isPlayingThis
                                                     }
                                                     
                                                     MultiEffect {
@@ -846,7 +1086,7 @@ ApplicationWindow {
                                                         anchors.fill: searchPlayIcon
                                                         colorization: 1.0
                                                         colorizationColor: "#ffffff"
-                                                        visible: searchDelegate.isPlayingThis
+                                                        visible: isPlayingThis
                                                     }
 
                                                     MouseArea {
@@ -920,6 +1160,15 @@ ApplicationWindow {
 
 					
 				}
+
+                MouseArea {
+                    anchors.fill: parent
+                    propagateComposedEvents: true
+                    onPressed: function(mouse) {
+                        searchInput.focus = false
+                        mouse.accepted = false
+                    }
+                }
 			}
 
 			Item {
@@ -1053,7 +1302,10 @@ ApplicationWindow {
                                     var TLx = x; var TLy = y
                                     var dxTL = TLx - clickX; var dyTL = TLy - clickY
                                 }
-                                onClosed: logActive = false
+                                onClosed: {
+                                    logActive = false
+                                    searchInput.focus = false
+                                }
                                 function openFor(index, title, artists, coverUrl, originItem, mouse, type) {
                                     songIndex = index; songTitle = title; songArtists = artists; songCover = coverUrl
                                     sourceType = type || "playlist"
@@ -1080,6 +1332,259 @@ ApplicationWindow {
                                     targetY = tY
                                     logActive = true
                                     open()
+                                }
+                            }
+
+                            Popup {
+                                id: playlistActionPopup
+                                parent: appWindow.overlay
+                                modal: false
+                                closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+                                width: 200
+                                background: Rectangle {
+                                    color: "#ffffff"
+                                    radius: 8
+                                    border.color: "#e5e7eb"
+                                    border.width: 1
+                                    layer.enabled: true
+                                    layer.effect: MultiEffect {
+                                        shadowEnabled: true
+                                        shadowColor: "#20000000"
+                                        shadowBlur: 10
+                                        shadowVerticalOffset: 4
+                                    }
+                                }
+
+                                property string playlistId: ""
+                                property string playlistName: ""
+                                property int playlistCount: 0
+                                property url playlistCover: ""
+                                property bool isCreated: false
+
+                                function openFor(id, name, count, cover, isCreatedPlaylist, originItem, mouse) {
+                                    console.log("Opening playlist popup. ID:", id, "Name:", name, "isCreated:", isCreatedPlaylist)
+                                    playlistId = id
+                                    playlistName = name
+                                    playlistCount = count
+                                    playlistCover = cover
+                                    isCreated = isCreatedPlaylist
+                                    
+                                    var p = originItem.mapToItem(playlistActionPopup.parent, mouse.x, mouse.y)
+                                    x = Math.min(p.x, appWindow.width - width - 10)
+                                    y = Math.min(p.y, appWindow.height - height - 10)
+                                    open()
+                                }
+
+                                contentItem: ColumnLayout {
+                                    spacing: 4
+
+                                    Repeater {
+                                        model: [
+                                            { text: qsTr("查看歌单"), icon: Qt.resolvedUrl("ui-asset/black-backgroud/login/visible.svg"), action: "view" },
+                                            { text: qsTr("播放"), icon: iconPlay, action: "play" },
+                                            { text: qsTr("下一首播放"), icon: iconNext, action: "playNext" },
+                                            { type: "separator" },
+                                            { text: qsTr("分享..."), icon: Qt.resolvedUrl("ui-asset/black-backgroud/login/qrcode.svg"), action: "share" },
+                                            { text: qsTr("复制链接"), icon: Qt.resolvedUrl("ui-asset/black-backgroud/login/qrcode.svg"), action: "copy" },
+                                            { text: qsTr("下载全部"), icon: Qt.resolvedUrl("ui-asset/black-backgroud/login/dropdown.svg"), action: "download" },
+                                            { type: "separator" },
+                                            { text: qsTr("编辑歌单信息"), icon: iconSettings, action: "edit", visible: playlistActionPopup.isCreated },
+                                            { text: playlistActionPopup.isCreated ? qsTr("删除歌单") : qsTr("取消收藏"), icon: iconDelete, action: "delete" }
+                                        ].filter(item => item.visible !== false)
+                                        
+                                        delegate: Item {
+                                            Layout.fillWidth: true
+                                            Layout.preferredHeight: modelData.type === "separator" ? 9 : 40
+                                            visible: true
+
+                                            Rectangle {
+                                                anchors.fill: parent
+                                                color: hoverHandler.hovered ? "#f3f4f6" : "transparent"
+                                                radius: 4
+                                                visible: modelData.type !== "separator"
+                                                anchors.margins: 2
+                                                
+                                                HoverHandler { id: hoverHandler }
+                                                
+                                                MouseArea {
+                                                    anchors.fill: parent
+                                                    onClicked: {
+                                                        playlistActionPopup.close()
+                                                        switch(modelData.action) {
+                                                            case "view":
+                                                                if (musicController) musicController.loadPlaylist(playlistActionPopup.playlistId)
+                                                                break
+                                                            case "play":
+                                                                if (musicController) musicController.importPlaylistToQueue(playlistActionPopup.playlistId, true, "FIRST")
+                                                                break
+                                                            case "playNext":
+                                                                if (musicController) musicController.importPlaylistToNext(playlistActionPopup.playlistId)
+                                                                break
+                                                            case "copy":
+                                                                console.log("Copy link for " + playlistActionPopup.playlistId)
+                                                                break
+                                                            case "delete":
+                                                                if (playlistActionPopup.isCreated) {
+                                                                    if (musicController) musicController.deletePlaylist(playlistActionPopup.playlistId)
+                                                                } else {
+                                                                    if (musicController) musicController.subscribePlaylist(playlistActionPopup.playlistId, false)
+                                                                }
+                                                                break
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+                                            RowLayout {
+                                                anchors.fill: parent
+                                                anchors.leftMargin: 12
+                                                anchors.rightMargin: 12
+                                                visible: modelData.type !== "separator"
+                                                spacing: 12
+                                                
+                                                Image {
+                                                    source: modelData.icon || ""
+                                                    Layout.preferredWidth: 16
+                                                    Layout.preferredHeight: 16
+                                                    sourceSize.width: 32
+                                                    sourceSize.height: 32
+                                                    fillMode: Image.PreserveAspectFit
+                                                    visible: modelData.icon !== ""
+                                                    opacity: 0.7
+                                                    Layout.alignment: Qt.AlignVCenter
+                                                }
+                                                
+                                                Text {
+                                                    text: modelData.text || ""
+                                                    color: "#111827"
+                                                    font.pixelSize: 13
+                                                    Layout.fillWidth: true
+                                                    Layout.alignment: Qt.AlignVCenter
+                                                    elide: Text.ElideRight
+                                                }
+                                            }
+                                            
+                                            Rectangle {
+                                                height: 1
+                                                color: "#e5e7eb"
+                                                anchors.centerIn: parent
+                                                width: parent.width - 24
+                                                visible: modelData.type === "separator"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            Popup {
+                                id: createPlaylistPopup
+                                parent: Overlay.overlay
+                                x: Math.round((parent.width - width) / 2)
+                                y: Math.round((parent.height - height) / 2)
+                                width: 300
+                                height: 240
+                                modal: true
+                                focus: true
+                                closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+                                
+                                background: Rectangle {
+                                    color: "#ffffff"
+                                    radius: 8
+                                    border.color: "#e5e7eb"
+                                    layer.enabled: true
+                                    layer.effect: MultiEffect {
+                                        shadowEnabled: true
+                                        shadowColor: "#20000000"
+                                        shadowBlur: 20
+                                        shadowVerticalOffset: 4
+                                    }
+                                }
+                                
+                                contentItem: ColumnLayout {
+                                    spacing: 16
+                                    Text {
+                                        text: qsTr("新建歌单")
+                                        font.bold: true
+                                        font.pixelSize: 18
+                                        Layout.alignment: Qt.AlignHCenter
+                                        color: "#111827"
+                                    }
+                                    
+                                    TextField {
+                                        id: playlistNameInput
+                                        placeholderText: qsTr("请输入歌单标题")
+                                        placeholderTextColor: "#6b7280" // Gray-500 for better contrast
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 40
+                                        selectByMouse: true
+                                        font.pixelSize: 14
+                                        verticalAlignment: TextInput.AlignVCenter
+                                        leftPadding: 12
+                                        background: Rectangle {
+                                            color: "#f9fafb" // Gray-50
+                                            radius: 6
+                                            border.width: parent.activeFocus ? 1 : 1
+                                            border.color: parent.activeFocus ? "#3b82f6" : "#e5e7eb"
+                                        }
+                                        color: "#111827"
+                                    }
+                                    
+                                    CheckBox {
+                                        id: privacyCheckbox
+                                        text: qsTr("设置为隐私歌单")
+                                        
+                                        contentItem: Text {
+                                            text: parent.text
+                                            font: parent.font
+                                            opacity: enabled ? 1.0 : 0.3
+                                            color: "#374151" // Gray-700
+                                            verticalAlignment: Text.AlignVCenter
+                                            leftPadding: parent.indicator.width + parent.spacing
+                                        }
+                                    }
+                                    
+                                    Item { Layout.fillHeight: true }
+                                    
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        Layout.alignment: Qt.AlignRight
+                                        spacing: 12
+                                        
+                                        Button {
+                                            text: qsTr("取消")
+                                            flat: true
+                                            onClicked: createPlaylistPopup.close()
+                                            background: Rectangle {
+                                                color: parent.down ? "#e5e7eb" : "transparent"
+                                                radius: 4
+                                            }
+                                        }
+                                        
+                                        Button {
+                                            text: qsTr("创建")
+                                            highlighted: true
+                                            enabled: playlistNameInput.text.length > 0
+                                            onClicked: {
+                                                if (musicController) {
+                                                    musicController.createPlaylist(playlistNameInput.text, "NORMAL", privacyCheckbox.checked)
+                                                }
+                                                createPlaylistPopup.close()
+                                                playlistNameInput.text = ""
+                                                privacyCheckbox.checked = false
+                                            }
+                                            background: Rectangle {
+                                                color: parent.down ? "#1d4ed8" : "#2563eb"
+                                                radius: 4
+                                                opacity: parent.enabled ? 1.0 : 0.5
+                                            }
+                                            contentItem: Text {
+                                                text: parent.text
+                                                color: "#ffffff"
+                                                horizontalAlignment: Text.AlignHCenter
+                                                verticalAlignment: Text.AlignVCenter
+                                            }
+                                        }
+                                    }
                                 }
                             }
 
@@ -1111,13 +1616,17 @@ ApplicationWindow {
 									font.weight: Font.DemiBold
 									color: "#111827"
 								}
-								Button {
-									text: qsTr("刷新")
+								Row {
 									anchors.right: parent.right
 									anchors.rightMargin: 8
 									anchors.verticalCenter: parent.verticalCenter
-									flat: true
-									onClicked: if (musicController) musicController.loadUserPlaylist()
+									spacing: 4
+									
+									Button {
+										text: qsTr("刷新")
+										flat: true
+										onClicked: if (musicController) musicController.loadUserPlaylist()
+									}
 								}
 							}
 							
@@ -1136,8 +1645,14 @@ ApplicationWindow {
 
 										MouseArea {
 											anchors.fill: parent
-											onClicked: {
-												if (musicController) musicController.loadPlaylist(model.id)
+                                            acceptedButtons: Qt.LeftButton | Qt.RightButton
+											onClicked: (mouse) => {
+												if (mouse.button === Qt.LeftButton) {
+                                                    if (musicController) musicController.loadPlaylist(model.id)
+                                                } else if (mouse.button === Qt.RightButton) {
+                                                    var isCreated = musicController && musicController.userId === model.creatorId
+                                                    playlistActionPopup.openFor(model.id, model.name, model.trackCount, model.coverUrl, isCreated, parent, mouse)
+                                                }
 											}
 										}
 										
@@ -1171,7 +1686,7 @@ ApplicationWindow {
 													text: model.name
 													elide: Text.ElideRight
 													Layout.fillWidth: true
-													color: "#111827"
+													color: (musicController && musicController.playlistId === model.id) ? "#22c55e" : "#111827"
 													font.pixelSize: 13
 													font.weight: Font.Medium
 												}
@@ -1242,7 +1757,7 @@ ApplicationWindow {
 											}
 
 											Image {
-												source: "file:///d:/project/I-love-you/qt-rewrite/ui-asset/black-backgroud/login/下拉.svg"
+												source: Qt.resolvedUrl("ui-asset/black-backgroud/login/dropdown.svg")
 												Layout.preferredWidth: 12
 												Layout.preferredHeight: 12
 												fillMode: Image.PreserveAspectFit
@@ -1252,6 +1767,67 @@ ApplicationWindow {
 											}
 											
 											Item { Layout.fillWidth: true }
+										}
+									}
+
+									// New Playlist Button
+									Item {
+										Layout.fillWidth: true
+										Layout.preferredHeight: userPlaylistScrollView.createdExpanded ? 56 : 0
+										opacity: userPlaylistScrollView.createdExpanded ? 1.0 : 0.0
+										visible: opacity > 0
+										
+										Behavior on Layout.preferredHeight { NumberAnimation { duration: 300; easing.type: Easing.InOutQuad } }
+										Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.InOutQuad } }
+										
+										Rectangle {
+											anchors.fill: parent
+											anchors.margins: 4
+											radius: 8
+											color: createPlaylistHoverHandler.hovered ? "#e5e7eb" : "transparent"
+											
+											HoverHandler { id: createPlaylistHoverHandler }
+											
+											MouseArea {
+												anchors.fill: parent
+												cursorShape: Qt.PointingHandCursor
+												onClicked: createPlaylistPopup.open()
+											}
+											
+											RowLayout {
+												anchors.fill: parent
+												anchors.leftMargin: 8
+												anchors.rightMargin: 8
+												spacing: 10
+												
+												Item {
+													Layout.preferredWidth: 40
+													Layout.preferredHeight: 40
+													
+													Rectangle {
+														anchors.fill: parent
+														color: "#e5e7eb"
+														radius: 4
+													}
+													
+													Image {
+														source: Qt.resolvedUrl("ui-asset/black-backgroud/musiclist/add.svg")
+														anchors.centerIn: parent
+														width: 20
+														height: 20
+														fillMode: Image.PreserveAspectFit
+														opacity: 0.6
+													}
+												}
+												
+												Text {
+													text: qsTr("新建歌单")
+													Layout.fillWidth: true
+													color: "#111827"
+													font.pixelSize: 13
+													font.weight: Font.Medium
+												}
+											}
 										}
 									}
 
@@ -1295,7 +1871,7 @@ ApplicationWindow {
 											}
 
 											Image {
-												source: "file:///d:/project/I-love-you/qt-rewrite/ui-asset/black-backgroud/login/下拉.svg"
+												source: Qt.resolvedUrl("ui-asset/black-backgroud/login/dropdown.svg")
 												Layout.preferredWidth: 12
 												Layout.preferredHeight: 12
 												fillMode: Image.PreserveAspectFit

@@ -450,11 +450,11 @@ Window {
             enabled: !settings.locked
             property real lastX: 0
             property real lastY: 0
-            onPressed: {
+            onPressed: function(mouse) {
                 lastX = mouse.x
                 lastY = mouse.y
             }
-            onPositionChanged: {
+            onPositionChanged: function(mouse) {
                 var dx = mouse.x - lastX
                 var dy = mouse.y - lastY
                 overlay.width = Math.max(overlay.minimumWidth, overlay.width + dx)

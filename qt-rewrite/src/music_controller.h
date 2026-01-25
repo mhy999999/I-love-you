@@ -47,6 +47,7 @@ class MusicController : public QObject
 	Q_PROPERTY(PlaylistListModel *createdPlaylistModel READ createdPlaylistModel CONSTANT)
 	Q_PROPERTY(PlaylistListModel *collectedPlaylistModel READ collectedPlaylistModel CONSTANT)
 	Q_PROPERTY(bool playlistLoading READ playlistLoading NOTIFY playlistLoadingChanged)
+    Q_PROPERTY(QString playlistId READ playlistId NOTIFY playlistIdChanged)
 	Q_PROPERTY(QString playlistName READ playlistName NOTIFY playlistNameChanged)
 	Q_PROPERTY(bool playlistHasMore READ playlistHasMore NOTIFY playlistHasMoreChanged)
 	Q_PROPERTY(QString currentSongTitle READ currentSongTitle NOTIFY currentSongTitleChanged)
@@ -60,6 +61,8 @@ class MusicController : public QObject
     Q_PROPERTY(int playlistPageSize READ playlistPageSize WRITE setPlaylistPageSize NOTIFY playlistPageSizeChanged)
 	Q_PROPERTY(bool searchHasMore READ searchHasMore NOTIFY searchHasMoreChanged)
 	Q_PROPERTY(QStringList searchSuggestions READ searchSuggestions NOTIFY searchSuggestionsChanged)
+    Q_PROPERTY(QStringList searchHistory READ searchHistory NOTIFY searchHistoryChanged)
+    Q_PROPERTY(QVariantList hotSearchItems READ hotSearchItems NOTIFY hotSearchItemsChanged)
 
 public:
 	enum PlaybackMode
@@ -101,6 +104,7 @@ public:
 	PlaylistListModel *createdPlaylistModel();
 	PlaylistListModel *collectedPlaylistModel();
 	bool playlistLoading() const;
+    QString playlistId() const;
 	QString playlistName() const;
 	bool playlistHasMore() const;
 	QString currentSongTitle() const;
@@ -113,6 +117,7 @@ public:
 	int vipType() const;
 
 	Q_INVOKABLE void search(const QString &keyword);
+	Q_INVOKABLE void clearSearch();
 	Q_INVOKABLE void playIndex(int index);
 	Q_INVOKABLE void playPrev();
 	Q_INVOKABLE void playNext();
@@ -123,6 +128,7 @@ public:
 	Q_INVOKABLE void stop();
 	Q_INVOKABLE void adjustLyricOffsetMs(qint64 deltaMs);
 	Q_INVOKABLE void loadPlaylist(const QString &playlistId);
+    Q_INVOKABLE void importPlaylistToNext(const QString &playlistId);
 	Q_INVOKABLE void importPlaylistToQueue(const QString &playlistId = QString(), bool clearFirst = false, const QString &playSongId = QString(), bool preventReplay = false);
 	Q_INVOKABLE void playPlaylistTrack(int index);
 	Q_INVOKABLE void queuePlayFromSearchIndex(int index);
@@ -143,13 +149,27 @@ public:
 	Q_INVOKABLE void checkLoginStatus();
 	Q_INVOKABLE void playlistRemoveAt(int index);
 	Q_INVOKABLE void loadUserPlaylist(const QString &uid = QString());
+
+	Q_INVOKABLE void createPlaylist(const QString &name, const QString &type = "NORMAL", bool privacy = false);
+	Q_INVOKABLE void deletePlaylist(const QString &playlistIds);
+	Q_INVOKABLE void subscribePlaylist(const QString &playlistId, bool subscribe);
+	Q_INVOKABLE void loadPlaylistTracks(const QString &playlistId);
+
 	Q_INVOKABLE void onPlaylistRowRequested(int index);
 	Q_INVOKABLE void loadNextSearchPage();
 	Q_INVOKABLE void toggleLike(const QString &songId);
     Q_INVOKABLE bool isLiked(const QString &songId);
     Q_INVOKABLE void searchSuggest(const QString &keyword);
+    
+    Q_INVOKABLE void addSearchHistory(const QString &keyword);
+    Q_INVOKABLE void clearSearchHistory();
+    Q_INVOKABLE void removeSearchHistory(int index);
+    QStringList searchHistory() const;
+
+    Q_INVOKABLE void loadHotSearch();
     bool searchHasMore() const;
     QStringList searchSuggestions() const;
+    QVariantList hotSearchItems() const;
 
 signals:
     void loadingChanged();
@@ -165,6 +185,7 @@ signals:
 	void lyricOffsetMsChanged();
 	void coverSourceChanged();
 	void playlistLoadingChanged();
+    void playlistIdChanged();
 	void playlistNameChanged();
 	void playlistHasMoreChanged();
 	void errorOccurred(const QString &message);
@@ -174,7 +195,9 @@ signals:
     void playlistPageSizeChanged();
 	void loggedInChanged();
     void searchHasMoreChanged();
+    void searchHistoryChanged();
     void searchSuggestionsChanged();
+    void hotSearchItemsChanged();
     void userProfileChanged();
     void loginQrKeyReceived(const QString &key);
 	void loginQrCreateReceived(const QString &qrImg, const QString &qrUrl);
@@ -201,6 +224,7 @@ private:
     DiskCache lyricCache;
     QSharedPointer<RequestToken> searchToken;
     QSharedPointer<RequestToken> m_currentSearchSuggestToken;
+    QSharedPointer<RequestToken> m_hotSearchToken;
     QSharedPointer<RequestToken> playUrlToken;
     QSharedPointer<RequestToken> lyricToken;
     QSharedPointer<RequestToken> coverToken;
@@ -287,6 +311,11 @@ private:
     void loadFavoritePlaylist();
 
     QStringList m_searchSuggestions;
+    QStringList m_searchHistory;
+    QVariantList m_hotSearchItems;
+
+    void loadSearchHistory();
+    void saveSearchHistory();
 };
 
 }

@@ -104,6 +104,16 @@ struct LoginQrCheck
 	QString cookie;
 };
 
+struct HotSearchItem
+{
+    QString searchWord;
+    QString content;
+    int score = 0;
+    int source = 0;
+    int iconType = 0;
+    QString iconUrl;
+};
+
 // 错误分类，用于统一错误上报
 enum class ErrorCategory
 {

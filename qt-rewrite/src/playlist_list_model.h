@@ -17,7 +17,8 @@ public:
         NameRole,
         CoverUrlRole,
         DescriptionRole,
-        TrackCountRole
+        TrackCountRole,
+        CreatorIdRole
     };
 
     explicit PlaylistListModel(QObject *parent = nullptr);

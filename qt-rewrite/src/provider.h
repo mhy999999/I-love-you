@@ -52,10 +52,12 @@ public:
 	virtual bool supportsPlaylistTracks() const { return false; }
     virtual bool supportsUserPlaylist() const { return false; }
     virtual bool supportsSearchSuggest() const { return false; }
+    virtual bool supportsHotSearch() const { return false; }
 
     // 搜索结果回调类型：返回歌曲列表或错误
     using SearchCallback = std::function<void(Result<QList<Song>>) >;
     using SearchSuggestCallback = std::function<void(Result<QStringList>)>;
+    using HotSearchCallback = std::function<void(Result<QList<HotSearchItem>>)>;
     // 歌曲详情回调类型：返回单曲信息或错误
 	using SongDetailCallback = std::function<void(Result<Song>)>;
 	// 播放地址回调类型：返回播放地址或错误
@@ -75,6 +77,11 @@ public:
         Q_UNUSED(keyword); Q_UNUSED(callback);
         return nullptr;
     }
+    virtual QSharedPointer<RequestToken> hotSearch(const HotSearchCallback &callback)
+    {
+        Q_UNUSED(callback);
+        return nullptr;
+    }
     // 根据歌曲 id 获取完整详情
 	virtual QSharedPointer<RequestToken> songDetail(const QString &songId, const SongDetailCallback &callback) = 0;
 	// 根据歌曲 id 获取可播放地址
@@ -90,6 +97,26 @@ public:
     virtual QSharedPointer<RequestToken> playlistTracksOp(const QString &op, const QString &playlistId, const QString &trackIds, const BoolCallback &callback)
     {
         Q_UNUSED(op); Q_UNUSED(playlistId); Q_UNUSED(trackIds); Q_UNUSED(callback);
+        return nullptr;
+    }
+
+    virtual bool supportsPlaylistCreate() const { return false; }
+    virtual bool supportsPlaylistDelete() const { return false; }
+    virtual bool supportsPlaylistSubscribe() const { return false; }
+
+    virtual QSharedPointer<RequestToken> createPlaylist(const QString &name, const QString &type, bool privacy, const BoolCallback &callback)
+    {
+        Q_UNUSED(name); Q_UNUSED(type); Q_UNUSED(privacy); Q_UNUSED(callback);
+        return nullptr;
+    }
+    virtual QSharedPointer<RequestToken> deletePlaylist(const QString &playlistIds, const BoolCallback &callback)
+    {
+        Q_UNUSED(playlistIds); Q_UNUSED(callback);
+        return nullptr;
+    }
+    virtual QSharedPointer<RequestToken> subscribePlaylist(const QString &playlistId, bool subscribe, const BoolCallback &callback)
+    {
+        Q_UNUSED(playlistId); Q_UNUSED(subscribe); Q_UNUSED(callback);
         return nullptr;
     }
 };

@@ -417,6 +417,7 @@ MusicController::MusicController(QObject *parent)
 	connect(&m_playlistModel, &SongListModel::rowRequested, this, &MusicController::onPlaylistRowRequested);
 
 	loadQueueFromSettings();
+    loadSearchHistory();
 
 	connect(this, &MusicController::loginSuccess, this, &MusicController::loadUserPlaylist);
 
@@ -612,6 +613,11 @@ bool MusicController::playlistLoading() const
 QString MusicController::playlistName() const
 {
 	return m_playlistName;
+}
+
+QString MusicController::playlistId() const
+{
+	return m_playlistId;
 }
 
 bool MusicController::playlistHasMore() const
@@ -982,6 +988,8 @@ void MusicController::search(const QString &keyword)
 	if (keyword.trimmed().isEmpty())
 		return;
 
+    addSearchHistory(keyword);
+
 	m_searchKeyword = keyword;
 	m_searchOffset = 0;
 	m_searchHasMore = true;
@@ -1013,6 +1021,25 @@ void MusicController::search(const QString &keyword)
     });
 }
 
+void MusicController::clearSearch()
+{
+    if (searchToken)
+        searchToken->cancel();
+    if (m_currentSearchSuggestToken)
+        m_currentSearchSuggestToken->cancel();
+
+    m_songsModel.clear();
+    m_searchSuggestions.clear();
+    emit searchSuggestionsChanged();
+
+    m_searchKeyword.clear();
+    m_searchOffset = 0;
+    m_searchHasMore = false;
+    emit searchHasMoreChanged();
+
+    setLoading(false);
+}
+
 void MusicController::searchSuggest(const QString &keyword)
 {
     if (keyword.isEmpty()) {
@@ -1034,6 +1061,92 @@ void MusicController::searchSuggest(const QString &keyword)
         m_searchSuggestions = result.value;
         emit searchSuggestionsChanged();
     });
+}
+
+void MusicController::loadHotSearch()
+{
+    if (m_hotSearchToken)
+        m_hotSearchToken->cancel();
+        
+    m_hotSearchToken = providerManager.hotSearch([this](Result<QList<HotSearchItem>> result) {
+        if (!result.ok) {
+            if (result.error.category != ErrorCategory::Cancelled)
+                Logger::warning(QStringLiteral("Hot search failed: %1").arg(result.error.message));
+            return;
+        }
+        
+        QVariantList list;
+        for (const HotSearchItem &item : result.value) {
+            QVariantMap map;
+            map.insert("searchWord", item.searchWord);
+            map.insert("content", item.content);
+            map.insert("score", item.score);
+            map.insert("source", item.source);
+            map.insert("iconType", item.iconType);
+            map.insert("iconUrl", item.iconUrl);
+            list.append(map);
+        }
+        m_hotSearchItems = list;
+        emit hotSearchItemsChanged();
+    });
+}
+
+void MusicController::addSearchHistory(const QString &keyword)
+{
+    QString trimmed = keyword.trimmed();
+    if (trimmed.isEmpty()) return;
+    
+    m_searchHistory.removeAll(trimmed);
+    m_searchHistory.prepend(trimmed);
+    
+    while (m_searchHistory.size() > 20)
+        m_searchHistory.removeLast();
+        
+    emit searchHistoryChanged();
+    saveSearchHistory();
+}
+
+void MusicController::clearSearchHistory()
+{
+    m_searchHistory.clear();
+    emit searchHistoryChanged();
+    saveSearchHistory();
+}
+
+void MusicController::removeSearchHistory(int index)
+{
+    if (index >= 0 && index < m_searchHistory.size()) {
+        m_searchHistory.removeAt(index);
+        emit searchHistoryChanged();
+        saveSearchHistory();
+    }
+}
+
+QStringList MusicController::searchHistory() const
+{
+    return m_searchHistory;
+}
+
+void MusicController::loadSearchHistory()
+{
+    QSettings settings;
+    settings.beginGroup("history");
+    m_searchHistory = settings.value("search").toStringList();
+    settings.endGroup();
+    emit searchHistoryChanged();
+}
+
+void MusicController::saveSearchHistory()
+{
+    QSettings settings;
+    settings.beginGroup("history");
+    settings.setValue("search", m_searchHistory);
+    settings.endGroup();
+}
+
+QVariantList MusicController::hotSearchItems() const
+{
+    return m_hotSearchItems;
 }
 
 void MusicController::loadNextSearchPage()
@@ -1171,6 +1284,7 @@ void MusicController::loadPlaylist(const QString &playlistId)
 	if (playlistDetailToken)
 		playlistDetailToken->cancel();
 	m_playlistId = id;
+    emit playlistIdChanged();
 	setPlaylistLoading(true);
 	m_requestedPages.clear();
 	m_playlistPageTokens.clear();
@@ -1196,6 +1310,11 @@ void MusicController::loadPlaylist(const QString &playlistId)
 		// Load first page
 		loadPlaylistPage(0);
 	});
+}
+
+void MusicController::loadPlaylistTracks(const QString &playlistId)
+{
+    loadPlaylist(playlistId);
 }
 
 void MusicController::loadUserPlaylist(const QString &uid)
@@ -1261,6 +1380,39 @@ void MusicController::loadUserPlaylist(const QString &uid)
             loadFavoritePlaylist();
         }
 	});
+}
+
+void MusicController::createPlaylist(const QString &name, const QString &type, bool privacy)
+{
+    providerManager.createPlaylist(name, type, privacy, [this](Result<bool> result) {
+        if (!result.ok) {
+            emit errorOccurred(result.error.message);
+        } else {
+            loadUserPlaylist();
+        }
+    });
+}
+
+void MusicController::deletePlaylist(const QString &playlistIds)
+{
+    providerManager.deletePlaylist(playlistIds, [this](Result<bool> result) {
+        if (!result.ok) {
+            emit errorOccurred(result.error.message);
+        } else {
+            loadUserPlaylist();
+        }
+    });
+}
+
+void MusicController::subscribePlaylist(const QString &playlistId, bool subscribe)
+{
+    providerManager.subscribePlaylist(playlistId, subscribe, [this](Result<bool> result) {
+        if (!result.ok) {
+            emit errorOccurred(result.error.message);
+        } else {
+            loadUserPlaylist();
+        }
+    });
 }
 
 void MusicController::adjustLyricOffsetMs(qint64 deltaMs)
@@ -1349,6 +1501,74 @@ void MusicController::loadPlaylistPage(int page)
         m_playlistPageTokens.insert(page, token);
     }
 }
+void MusicController::importPlaylistToNext(const QString &playlistId)
+{
+    QString targetId = playlistId.isEmpty() ? m_playlistId : playlistId;
+    if (targetId.isEmpty()) return;
+
+    if (importToken)
+        importToken->cancel();
+
+    int limit = 1000;
+    int offset = 0;
+
+    importToken = providerManager.playlistTracks(targetId, limit, offset, [this](Result<PlaylistTracksPage> result) {
+        importToken.clear();
+        if (!result.ok) {
+            emit errorOccurred("Import failed: " + result.error.message);
+            return;
+        }
+
+        QList<Song> songs = result.value.songs;
+        if (songs.isEmpty()) {
+             emit errorOccurred("Playlist is empty");
+             return;
+        }
+
+        auto songKey = [](const Song &x) {
+            QString p = x.providerId.isEmpty() ? x.source : x.providerId;
+            return p + QStringLiteral(":") + x.id;
+        };
+        
+        QList<Song> currentQueue = m_queueModel.songs();
+        QSet<QString> existingKeys;
+        for (const Song &s : currentQueue) {
+            existingKeys.insert(songKey(s));
+        }
+        
+        QList<Song> newSongs;
+        for (const Song &s : songs) {
+            if (s.id.isEmpty()) continue;
+            QString key = songKey(s);
+            if (!existingKeys.contains(key)) {
+                newSongs.append(s);
+                existingKeys.insert(key);
+            }
+        }
+        
+        if (newSongs.isEmpty()) {
+             emit toastMessage(QStringLiteral("歌曲已在播放列表中"));
+             return;
+        }
+        
+        QList<Song> finalQueue = currentQueue;
+        int insertPos = 0;
+        if (m_currentSongIndex >= 0 && m_currentSongIndex < finalQueue.size()) {
+            insertPos = m_currentSongIndex + 1;
+        } else {
+            insertPos = finalQueue.size();
+        }
+        
+        for (int i = 0; i < newSongs.size(); ++i) {
+            finalQueue.insert(insertPos + i, newSongs[i]);
+        }
+        
+        m_queueModel.setSongs(finalQueue);
+        saveQueueToSettings();
+        emit toastMessage(QStringLiteral("已添加到下一首播放"));
+    });
+}
+
 void MusicController::importPlaylistToQueue(const QString &playlistId, bool clearFirst, const QString &playSongId, bool preventReplay)
 {
     QString targetId = playlistId.isEmpty() ? m_playlistId : playlistId;
@@ -1407,6 +1627,10 @@ void MusicController::importPlaylistToQueue(const QString &playlistId, bool clea
         }
 
         if (!playSongId.isEmpty()) {
+            if (playSongId == QStringLiteral("FIRST") && !queue.isEmpty()) {
+                 playIndex(0);
+                 return;
+            }
             for (int i = 0; i < queue.size(); ++i) {
                 if (queue.at(i).id == playSongId) {
                     if (preventReplay && m_currentSongId == playSongId) {
@@ -2005,6 +2229,7 @@ void MusicController::toggleLike(const QString &songId)
     
     providerManager.playlistTracksOp(op, m_favoritePlaylistId, songId, [this, songId, currentlyLiked, op](Result<bool> result) {
         if (!result.ok) {
+            Logger::error(QStringLiteral("Toggle like failed for song %1. Error: %2").arg(songId).arg(result.error.message));
             // Revert on failure
             if (currentlyLiked) m_likedSongIds.insert(songId);
             else m_likedSongIds.remove(songId);
@@ -2046,6 +2271,7 @@ void MusicController::checkLoginStatus()
 			m_playlistModel.clear();
 			setPlaylistName(QString());
 			m_playlistId.clear();
+            emit playlistIdChanged();
 			setPlaylistHasMore(false);
 
 			emit loggedInChanged();

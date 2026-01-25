@@ -5,6 +5,7 @@
 
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QNetworkCookieJar>
 #include <QUrlQuery>
 #include <QTimer>
 
@@ -37,6 +38,7 @@ HttpClient::HttpClient(QObject *parent)
 	: QObject(parent)
 {
 	manager.setRedirectPolicy(QNetworkRequest::NoLessSafeRedirectPolicy);
+	manager.setCookieJar(new QNetworkCookieJar(this));
 }
 
 // 设置默认请求头

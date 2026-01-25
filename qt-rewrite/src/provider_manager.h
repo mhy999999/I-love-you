@@ -51,6 +51,8 @@ public:
     QSharedPointer<RequestToken> search(const QString &keyword, int limit, int offset, const IProvider::SearchCallback &callback, const QStringList &preferredProviderIds = {});
     // 搜索建议
     QSharedPointer<RequestToken> searchSuggest(const QString &keyword, const IProvider::SearchSuggestCallback &callback, const QStringList &preferredProviderIds = {});
+    // 热搜
+    QSharedPointer<RequestToken> hotSearch(const IProvider::HotSearchCallback &callback, const QStringList &preferredProviderIds = {});
     // 获取歌曲详情，支持多 Provider fallback
 	QSharedPointer<RequestToken> songDetail(const QString &songId, const IProvider::SongDetailCallback &callback, const QStringList &preferredProviderIds = {});
 	// 获取播放地址，支持多 Provider fallback
@@ -66,6 +68,10 @@ public:
     
     // 歌单增删歌曲
     QSharedPointer<RequestToken> playlistTracksOp(const QString &op, const QString &playlistId, const QString &trackIds, const IProvider::BoolCallback &callback, const QStringList &preferredProviderIds = {});
+
+    QSharedPointer<RequestToken> createPlaylist(const QString &name, const QString &type, bool privacy, const IProvider::BoolCallback &callback, const QStringList &preferredProviderIds = {});
+    QSharedPointer<RequestToken> deletePlaylist(const QString &playlistIds, const IProvider::BoolCallback &callback, const QStringList &preferredProviderIds = {});
+    QSharedPointer<RequestToken> subscribePlaylist(const QString &playlistId, bool subscribe, const IProvider::BoolCallback &callback, const QStringList &preferredProviderIds = {});
 
 private:
 	// Provider 存储：id -> 实例指针

@@ -34,6 +34,8 @@ QVariant PlaylistListModel::data(const QModelIndex &index, int role) const
         return playlist.description;
     case TrackCountRole:
         return playlist.trackCount;
+    case CreatorIdRole:
+        return playlist.creatorId;
     }
 
     return QVariant();
@@ -47,6 +49,7 @@ QHash<int, QByteArray> PlaylistListModel::roleNames() const
     roles[CoverUrlRole] = "coverUrl";
     roles[DescriptionRole] = "description";
     roles[TrackCountRole] = "trackCount";
+    roles[CreatorIdRole] = "creatorId";
     return roles;
 }
 

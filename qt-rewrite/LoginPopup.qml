@@ -205,7 +205,7 @@ Popup {
 				anchors.top: parent.top
 				anchors.left: parent.left
 				anchors.margins: 10
-				source: "qrc:/qt/qml/qtrewrite/ui-asset/black-backgroud/login/二维码.svg"
+				source: "qrc:/qt/qml/qtrewrite/ui-asset/black-backgroud/login/qrcode.svg"
 				fillMode: Image.PreserveAspectFit
 				mipmap: true
 				
