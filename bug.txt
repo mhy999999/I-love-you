@@ -1,0 +1,35 @@
+D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C3646: ��creator��: δ֪��д˵����
+D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C4430: ȱ������˵���� - �ٶ�Ϊ int��ע��: C++ ��֧��Ĭ�� int
+D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C3646: ��creator��: δ֪��д˵����
+D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C4430: ȱ������˵���� - �ٶ�Ϊ int��ע��: C++ ��֧��Ĭ�� int
+D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C3646: ��creator��: δ֪��д˵����
+D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C4430: ȱ������˵���� - �ٶ�Ϊ int��ע��: C++ ��֧��Ĭ�� int
+D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C3646: ��creator��: δ֪��д˵����
+D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C4430: ȱ������˵���� - �ٶ�Ϊ int��ע��: C++ ��֧��Ĭ�� int
+D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C3646: ��creator��: δ֪��д˵����
+D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C4430: ȱ������˵���� - �ٶ�Ϊ int��ע��: C++ ��֧��Ĭ�� int
+D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C3646: ��creator��: δ֪��д˵����
+D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C4430: ȱ������˵���� - �ٶ�Ϊ int��ע��: C++ ��֧��Ĭ�� int
+D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C3646: ��creator��: δ֪��д˵����
+D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C4430: ȱ������˵���� - �ٶ�Ϊ int��ע��: C++ ��֧��Ĭ�� int
+D:\project\I-love-you\qt-rewrite\src\netease_provider.cpp:1831: error: C2039: "creator": ���� "App::PlaylistMeta" �ĳ�Ա
+D:\project\I-love-you\qt-rewrite\src\netease_provider.cpp(1831): error C2039: "creator": ���� "App::PlaylistMeta" �ĳ�Ա
+D:\project\I-love-you\qt-rewrite\src\core_types.h(60): note: �μ���App::PlaylistMeta��������
+D:\project\I-love-you\qt-rewrite\src\netease_provider.cpp:1832: error: C2039: "creator": ���� "App::PlaylistMeta" �ĳ�Ա
+D:\project\I-love-you\qt-rewrite\src\netease_provider.cpp(1832): error C2039: "creator": ���� "App::PlaylistMeta" �ĳ�Ա
+D:\project\I-love-you\qt-rewrite\src\core_types.h(60): note: �μ���App::PlaylistMeta��������
+D:\project\I-love-you\qt-rewrite\src\netease_provider.cpp:1833: error: C2039: "creator": ���� "App::PlaylistMeta" �ĳ�Ա
+D:\project\I-love-you\qt-rewrite\src\netease_provider.cpp(1833): error C2039: "creator": ���� "App::PlaylistMeta" �ĳ�Ա
+D:\project\I-love-you\qt-rewrite\src\core_types.h(60): note: �μ���App::PlaylistMeta��������
+D:\project\I-love-you\qt-rewrite\src\netease_provider.cpp:1834: error: C2039: "creator": ���� "App::PlaylistMeta" �ĳ�Ա
+D:\project\I-love-you\qt-rewrite\src\netease_provider.cpp(1834): error C2039: "creator": ���� "App::PlaylistMeta" �ĳ�Ա
+D:\project\I-love-you\qt-rewrite\src\core_types.h(60): note: �μ���App::PlaylistMeta��������
+D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C3646: ��creator��: δ֪��д˵����
+D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C4430: ȱ������˵���� - �ٶ�Ϊ int��ע��: C++ ��֧��Ĭ�� int
+D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C3646: ��creator��: δ֪��д˵����
+D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C4430: ȱ������˵���� - �ٶ�Ϊ int��ע��: C++ ��֧��Ĭ�� int
+D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C3646: ��creator��: δ֪��д˵����
+D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C4430: ȱ������˵���� - �ٶ�Ϊ int��ע��: C++ ��֧��Ĭ�� int
+D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C3646: ��creator��: δ֪��д˵����
+D:\project\I-love-you\qt-rewrite\src\core_types.h:70: error: C4430: ȱ������˵���� - �ٶ�Ϊ int��ע��: C++ ��֧��Ĭ�� int
+:-1: error: ninja: build stopped: subcommand failed.

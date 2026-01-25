@@ -49,6 +49,14 @@ class MusicController : public QObject
 	Q_PROPERTY(bool playlistLoading READ playlistLoading NOTIFY playlistLoadingChanged)
     Q_PROPERTY(QString playlistId READ playlistId NOTIFY playlistIdChanged)
 	Q_PROPERTY(QString playlistName READ playlistName NOTIFY playlistNameChanged)
+    Q_PROPERTY(QString playlistDescription READ playlistDescription NOTIFY playlistDetailChanged)
+    Q_PROPERTY(QStringList playlistTags READ playlistTags NOTIFY playlistDetailChanged)
+    Q_PROPERTY(QString playlistCreatorName READ playlistCreatorName NOTIFY playlistDetailChanged)
+    Q_PROPERTY(QUrl playlistCreatorAvatar READ playlistCreatorAvatar NOTIFY playlistDetailChanged)
+    Q_PROPERTY(qint64 playlistCreateTime READ playlistCreateTime NOTIFY playlistDetailChanged)
+    Q_PROPERTY(qint64 playlistPlayCount READ playlistPlayCount NOTIFY playlistDetailChanged)
+    Q_PROPERTY(qint64 playlistSubscribedCount READ playlistSubscribedCount NOTIFY playlistDetailChanged)
+    Q_PROPERTY(qint64 playlistShareCount READ playlistShareCount NOTIFY playlistDetailChanged)
 	Q_PROPERTY(bool playlistHasMore READ playlistHasMore NOTIFY playlistHasMoreChanged)
 	Q_PROPERTY(QString currentSongTitle READ currentSongTitle NOTIFY currentSongTitleChanged)
 	Q_PROPERTY(QString currentSongArtists READ currentSongArtists NOTIFY currentSongArtistsChanged)
@@ -106,6 +114,15 @@ public:
 	bool playlistLoading() const;
     QString playlistId() const;
 	QString playlistName() const;
+    QString playlistDescription() const;
+    QStringList playlistTags() const;
+    QString playlistCreatorName() const;
+    QUrl playlistCreatorAvatar() const;
+    qint64 playlistCreateTime() const;
+    qint64 playlistPlayCount() const;
+    qint64 playlistSubscribedCount() const;
+    qint64 playlistShareCount() const;
+    
 	bool playlistHasMore() const;
 	QString currentSongTitle() const;
 	QString currentSongArtists() const;
@@ -187,6 +204,7 @@ signals:
 	void playlistLoadingChanged();
     void playlistIdChanged();
 	void playlistNameChanged();
+    void playlistDetailChanged();
 	void playlistHasMoreChanged();
 	void errorOccurred(const QString &message);
 	void currentSongTitleChanged();
@@ -255,6 +273,14 @@ private:
 	bool m_playlistLoading = false;
 	QString m_playlistId;
 	QString m_playlistName;
+    QString m_playlistDescription;
+    QStringList m_playlistTags;
+    QString m_playlistCreatorName;
+    QUrl m_playlistCreatorAvatar;
+    qint64 m_playlistCreateTime = 0;
+    qint64 m_playlistPlayCount = 0;
+    qint64 m_playlistSubscribedCount = 0;
+    qint64 m_playlistShareCount = 0;
 	int m_playlistTotal = 0;
 	int m_playlistOffset = 0;
 	int m_playlistLimit = 50;

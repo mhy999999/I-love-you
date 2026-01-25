@@ -65,6 +65,19 @@ struct PlaylistMeta
 	QString description;
 	int trackCount = 0;
 	QString creatorId;
+    
+    // Detailed info
+    QStringList tags;
+    qint64 createTime = 0;
+    qint64 updateTime = 0;
+    qint64 playCount = 0;
+    qint64 subscribedCount = 0;
+    qint64 shareCount = 0;
+    int commentCount = 0;
+    
+    // Creator info
+    QString creatorName;
+    QUrl creatorAvatar;
 };
 
 struct PlaylistTracksPage

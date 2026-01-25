@@ -1743,6 +1743,25 @@ Result<PlaylistMeta> NeteaseProvider::parsePlaylistDetail(const QByteArray &body
 	meta.coverUrl = QUrl(playlistObj.value(QStringLiteral("coverImgUrl")).toString());
 	meta.description = playlistObj.value(QStringLiteral("description")).toString();
 	meta.trackCount = playlistObj.value(QStringLiteral("trackCount")).toInt();
+    
+    // Parse detailed info
+    QJsonArray tagsArr = playlistObj.value(QStringLiteral("tags")).toArray();
+    for (const QJsonValue &v : tagsArr) {
+        meta.tags.append(v.toString());
+    }
+    
+    meta.createTime = playlistObj.value(QStringLiteral("createTime")).toVariant().toLongLong();
+    meta.updateTime = playlistObj.value(QStringLiteral("updateTime")).toVariant().toLongLong();
+    meta.playCount = playlistObj.value(QStringLiteral("playCount")).toVariant().toLongLong();
+    meta.subscribedCount = playlistObj.value(QStringLiteral("subscribedCount")).toVariant().toLongLong();
+    meta.shareCount = playlistObj.value(QStringLiteral("shareCount")).toVariant().toLongLong();
+    meta.commentCount = playlistObj.value(QStringLiteral("commentCount")).toInt();
+    
+    QJsonObject creator = playlistObj.value(QStringLiteral("creator")).toObject();
+    meta.creatorId = creator.value(QStringLiteral("userId")).toVariant().toString(); // Update creatorId from detailed object if needed, though core logic might use userPlaylist's creatorId.
+    meta.creatorName = creator.value(QStringLiteral("nickname")).toString();
+    meta.creatorAvatar = QUrl(creator.value(QStringLiteral("avatarUrl")).toString());
+    
 	return Result<PlaylistMeta>::success(meta);
 }
 

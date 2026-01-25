@@ -1932,13 +1932,11 @@ ApplicationWindow {
 								Layout.alignment: Qt.AlignHCenter
 							}
 
-							Text {
-								text: musicController ? musicController.playlistName : ""
-								color: "#111827"
-								font.pixelSize: 18
-								elide: Text.ElideRight
-								Layout.fillWidth: true
-							}
+							PlaylistHeader {
+                                Layout.fillWidth: true
+                                Layout.bottomMargin: 16
+                                visible: musicController && musicController.playlistId !== ""
+                            }
 
 							Frame {
 								Layout.fillWidth: true

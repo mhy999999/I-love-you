@@ -615,6 +615,47 @@ QString MusicController::playlistName() const
 	return m_playlistName;
 }
 
+QString MusicController::playlistDescription() const
+{
+    return m_playlistDescription;
+}
+
+QStringList MusicController::playlistTags() const
+{
+    return m_playlistTags;
+}
+
+QString MusicController::playlistCreatorName() const
+{
+    return m_playlistCreatorName;
+}
+
+QUrl MusicController::playlistCreatorAvatar() const
+{
+    return m_playlistCreatorAvatar;
+}
+
+qint64 MusicController::playlistCreateTime() const
+{
+    return m_playlistCreateTime;
+}
+
+qint64 MusicController::playlistPlayCount() const
+{
+    return m_playlistPlayCount;
+}
+
+qint64 MusicController::playlistSubscribedCount() const
+{
+    return m_playlistSubscribedCount;
+}
+
+qint64 MusicController::playlistShareCount() const
+{
+    return m_playlistShareCount;
+}
+
+
 QString MusicController::playlistId() const
 {
 	return m_playlistId;
@@ -1303,6 +1344,17 @@ void MusicController::loadPlaylist(const QString &playlistId)
 		}
 
 		setPlaylistName(result.value.name);
+        
+        m_playlistDescription = result.value.description;
+        m_playlistTags = result.value.tags;
+        m_playlistCreatorName = result.value.creatorName;
+        m_playlistCreatorAvatar = result.value.creatorAvatar;
+        m_playlistCreateTime = result.value.createTime;
+        m_playlistPlayCount = result.value.playCount;
+        m_playlistSubscribedCount = result.value.subscribedCount;
+        m_playlistShareCount = result.value.shareCount;
+        emit playlistDetailChanged();
+        
 		m_playlistTotal = result.value.trackCount;
 		m_playlistModel.setTotalCount(m_playlistTotal);
 		requestCover(result.value.coverUrl);

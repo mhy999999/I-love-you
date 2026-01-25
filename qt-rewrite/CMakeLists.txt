@@ -41,6 +41,7 @@ qt_add_qml_module(appqtrewrite
         LyricOverlay.qml
         LoginPopup.qml
         UserMenuPopup.qml
+        PlaylistHeader.qml
     RESOURCES
         "ui-asset/black-backgroud/上一首.svg"
         "ui-asset/black-backgroud/下一首.svg"
