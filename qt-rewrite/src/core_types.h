@@ -112,6 +112,7 @@ enum class ErrorCategory
 	Auth,
 	UpstreamChange,
 	RateLimit,
+	Cancelled,
 	Unknown
 };
 

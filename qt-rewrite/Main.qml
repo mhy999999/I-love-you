@@ -387,20 +387,79 @@ ApplicationWindow {
 						Item {
 							Layout.fillWidth: true
 							implicitHeight: 34
-							TextField {
-								id: searchInput
-								anchors.fill: parent
-								placeholderText: qsTr("搜索歌曲关键词")
-								font.pixelSize: 14
-								color: "#111827"
-								background: Rectangle {
-									radius: 6
-									color: "#ffffff"
-									border.color: "#cbd5e1"
-									border.width: 1
-								}
-								onAccepted: if (musicController) musicController.search(text)
-							}
+                            TextField {
+                                id: searchInput
+                                anchors.fill: parent
+                                placeholderText: qsTr("搜索歌曲关键词")
+                                font.pixelSize: 14
+                                color: "#111827"
+                                background: Rectangle {
+                                    radius: 6
+                                    color: "#ffffff"
+                                    border.color: "#cbd5e1"
+                                    border.width: 1
+                                }
+                                onAccepted: if (musicController) musicController.search(text)
+                                onTextChanged: {
+                                    if (musicController && text.length > 0) {
+                                        musicController.searchSuggest(text)
+                                    }
+                                }
+                                Popup {
+                                    id: searchSuggestPopup
+                                    y: parent.height + 4
+                                    width: parent.width
+                                    padding: 4
+                                    closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+                                    visible: searchInput.activeFocus && searchInput.text.length > 0 && musicController && musicController.searchSuggestions.length > 0
+                                    background: Rectangle {
+                                        color: "#ffffff"
+                                        radius: 8
+                                        border.color: "#e2e8f0"
+                                        border.width: 1
+                                        layer.enabled: true
+                                        layer.effect: MultiEffect {
+                                            shadowEnabled: true
+                                            shadowColor: "#40000000"
+                                            shadowBlur: 1.0
+                                            shadowHorizontalOffset: 0
+                                            shadowVerticalOffset: 4
+                                        }
+                                    }
+                                    contentItem: ListView {
+                                        id: suggestListView
+                                        implicitHeight: Math.min(count * 40, 320)
+                                        model: musicController ? musicController.searchSuggestions : []
+                                        clip: true
+                                        delegate: ItemDelegate {
+                                            id: delegateItem
+                                            width: suggestListView.width
+                                            height: 40
+                                            padding: 12
+                                            
+                                            contentItem: Text {
+                                                text: modelData
+                                                font.pixelSize: 14
+                                                color: "#1e293b" // slate-800
+                                                elide: Text.ElideRight
+                                                verticalAlignment: Text.AlignVCenter
+                                            }
+
+                                            background: Rectangle {
+                                                color: delegateItem.hovered ? "#f1f5f9" : "transparent" // slate-100
+                                                radius: 4
+                                            }
+
+                                            onClicked: {
+                                                searchInput.text = modelData
+                                                musicController.search(modelData)
+                                                searchSuggestPopup.close()
+                                                searchInput.focus = false
+                                            }
+                                        }
+                                    }
+                                }
+                            }
 							Text {
 								text: searchInput.placeholderText
 								color: "#6b7280"
@@ -736,7 +795,14 @@ ApplicationWindow {
                                                     Layout.fillHeight: true
                                                     Layout.preferredWidth: 40
                                                     
-                                                    property bool isLiked: false
+                                                    property bool isLiked: musicController && musicController.isLiked(model.id)
+                                                    
+                                                    Connections {
+                                                        target: musicController
+                                                        function onSongLikeStateChanged(songId, liked) {
+                                                            if (songId === model.id) isLiked = liked
+                                                        }
+                                                    }
                                                     
                                                     Image {
                                                         anchors.centerIn: parent
@@ -748,7 +814,7 @@ ApplicationWindow {
                                                     MouseArea {
                                                         anchors.fill: parent
                                                         cursorShape: Qt.PointingHandCursor
-                                                        onClicked: parent.isLiked = !parent.isLiked
+                                                        onClicked: if (musicController) musicController.toggleLike(model.id)
                                                     }
                                                 }
                                                 
@@ -1495,10 +1561,18 @@ ApplicationWindow {
                                                     
                                                     // Like Button
                                                     Item {
+                                                        id: likeBtnItem
                                                         Layout.fillHeight: true
                                                         Layout.preferredWidth: 40
                                                         
-                                                        property bool isLiked: false
+                                                        property bool isLiked: musicController ? musicController.isLiked(songId) : false
+
+                                                        Connections {
+                                                            target: musicController
+                                                            function onSongLikeStateChanged(id, state) {
+                                                                if (id === songId) likeBtnItem.isLiked = state
+                                                            }
+                                                        }
                                                         
                                                         Image {
                                                             anchors.centerIn: parent
@@ -1510,7 +1584,7 @@ ApplicationWindow {
                                                         MouseArea {
                                                             anchors.fill: parent
                                                             cursorShape: Qt.PointingHandCursor
-                                                            onClicked: parent.isLiked = !parent.isLiked
+                                                            onClicked: if (musicController) musicController.toggleLike(songId)
                                                         }
                                                     }
                                                     
@@ -2144,10 +2218,18 @@ ApplicationWindow {
                                                 
                                                 // Like Button
                                                 Item {
+                                                    id: queueLikeBtn
                                                     Layout.fillHeight: true
                                                     Layout.preferredWidth: 40
                                                     
-                                                    property bool isLiked: false
+                                                    property bool isLiked: musicController && musicController.isLiked(model.id)
+                                                    
+                                                    Connections {
+                                                        target: musicController
+                                                        function onSongLikeStateChanged(songId, liked) {
+                                                            if (songId === model.id) queueLikeBtn.isLiked = liked
+                                                        }
+                                                    }
                                                     
                                                     Image {
                                                         anchors.centerIn: parent
@@ -2159,7 +2241,7 @@ ApplicationWindow {
                                                     MouseArea {
                                                         anchors.fill: parent
                                                         cursorShape: Qt.PointingHandCursor
-                                                        onClicked: parent.isLiked = !parent.isLiked
+                                                        onClicked: if (musicController) musicController.toggleLike(model.id)
                                                     }
                                                 }
                                                 
@@ -2367,11 +2449,63 @@ ApplicationWindow {
 		id: loginPopup
 	}
 
-	UserMenuPopup {
-		id: userMenuPopup
-	}
+    UserMenuPopup {
+        id: userMenuPopup
+    }
 
-	LyricOverlay {
+    Popup {
+        id: toastPopup
+        anchors.centerIn: Overlay.overlay
+        width: implicitWidth
+        height: implicitHeight
+        margins: 0
+        padding: 0
+        modal: false
+        focus: false
+        closePolicy: Popup.NoAutoClose
+
+        property string message: ""
+
+        background: Rectangle {
+            color: "#CC000000"
+            radius: 8
+        }
+        
+        contentItem: Text {
+            text: toastPopup.message
+            color: "white"
+            font.pixelSize: 16
+            padding: 20
+        }
+
+        Timer {
+            id: toastTimer
+            interval: 2000
+            onTriggered: toastPopup.close()
+        }
+
+        function show(msg) {
+            message = msg
+            open()
+            toastTimer.restart()
+        }
+        
+        enter: Transition {
+            NumberAnimation { property: "opacity"; from: 0.0; to: 1.0; duration: 200 }
+        }
+        exit: Transition {
+            NumberAnimation { property: "opacity"; from: 1.0; to: 0.0; duration: 200 }
+        }
+    }
+
+    Connections {
+        target: musicController
+        function onToastMessage(message) {
+            toastPopup.show(message)
+        }
+    }
+
+    LyricOverlay {
 		id: lyricOverlay
 		visible: lyricBox.active
 		onVisibleChanged: lyricBox.active = visible

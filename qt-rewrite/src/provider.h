@@ -50,11 +50,13 @@ public:
 	virtual bool supportsCover() const { return false; }
 	virtual bool supportsPlaylistDetail() const { return false; }
 	virtual bool supportsPlaylistTracks() const { return false; }
-	virtual bool supportsUserPlaylist() const { return false; }
+    virtual bool supportsUserPlaylist() const { return false; }
+    virtual bool supportsSearchSuggest() const { return false; }
 
-	// 搜索结果回调类型：返回歌曲列表或错误
-	using SearchCallback = std::function<void(Result<QList<Song>>) >;
-	// 歌曲详情回调类型：返回单曲信息或错误
+    // 搜索结果回调类型：返回歌曲列表或错误
+    using SearchCallback = std::function<void(Result<QList<Song>>) >;
+    using SearchSuggestCallback = std::function<void(Result<QStringList>)>;
+    // 歌曲详情回调类型：返回单曲信息或错误
 	using SongDetailCallback = std::function<void(Result<Song>)>;
 	// 播放地址回调类型：返回播放地址或错误
 	using PlayUrlCallback = std::function<void(Result<PlayUrl>)>;
@@ -64,10 +66,16 @@ public:
 	using CoverCallback = std::function<void(Result<QByteArray>)>;
 	using PlaylistDetailCallback = std::function<void(Result<PlaylistMeta>)>;
 	using PlaylistTracksCallback = std::function<void(Result<PlaylistTracksPage>)>;
+	using BoolCallback = std::function<void(Result<bool>)>;
 
 	// 按关键字搜索歌曲，limit 控制最大返回条数，offset 控制偏移量
-	virtual QSharedPointer<RequestToken> search(const QString &keyword, int limit, int offset, const SearchCallback &callback) = 0;
-	// 根据歌曲 id 获取完整详情
+    virtual QSharedPointer<RequestToken> search(const QString &keyword, int limit, int offset, const SearchCallback &callback) = 0;
+    virtual QSharedPointer<RequestToken> searchSuggest(const QString &keyword, const SearchSuggestCallback &callback)
+    {
+        Q_UNUSED(keyword); Q_UNUSED(callback);
+        return nullptr;
+    }
+    // 根据歌曲 id 获取完整详情
 	virtual QSharedPointer<RequestToken> songDetail(const QString &songId, const SongDetailCallback &callback) = 0;
 	// 根据歌曲 id 获取可播放地址
 	virtual QSharedPointer<RequestToken> playUrl(const QString &songId, const PlayUrlCallback &callback) = 0;
@@ -77,6 +85,13 @@ public:
 	virtual QSharedPointer<RequestToken> cover(const QUrl &coverUrl, const CoverCallback &callback) = 0;
 	virtual QSharedPointer<RequestToken> playlistDetail(const QString &playlistId, const PlaylistDetailCallback &callback) = 0;
 	virtual QSharedPointer<RequestToken> playlistTracks(const QString &playlistId, int limit, int offset, const PlaylistTracksCallback &callback) = 0;
+    
+    virtual bool supportsPlaylistTracksOp() const { return false; }
+    virtual QSharedPointer<RequestToken> playlistTracksOp(const QString &op, const QString &playlistId, const QString &trackIds, const BoolCallback &callback)
+    {
+        Q_UNUSED(op); Q_UNUSED(playlistId); Q_UNUSED(trackIds); Q_UNUSED(callback);
+        return nullptr;
+    }
 };
 
 }

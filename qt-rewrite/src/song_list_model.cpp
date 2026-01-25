@@ -142,6 +142,17 @@ void SongListModel::removeAt(int index)
     endRemoveRows();
 }
 
+bool SongListModel::removeById(const QString &songId)
+{
+    for (int i = 0; i < m_songs.size(); ++i) {
+        if (m_songs[i].id == songId) {
+            removeAt(i);
+            return true;
+        }
+    }
+    return false;
+}
+
 void SongListModel::clear()
 {
     if (m_songs.isEmpty())

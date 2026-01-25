@@ -59,6 +59,7 @@ class MusicController : public QObject
 	Q_PROPERTY(int vipType READ vipType NOTIFY userProfileChanged)
     Q_PROPERTY(int playlistPageSize READ playlistPageSize WRITE setPlaylistPageSize NOTIFY playlistPageSizeChanged)
 	Q_PROPERTY(bool searchHasMore READ searchHasMore NOTIFY searchHasMoreChanged)
+	Q_PROPERTY(QStringList searchSuggestions READ searchSuggestions NOTIFY searchSuggestionsChanged)
 
 public:
 	enum PlaybackMode
@@ -144,11 +145,17 @@ public:
 	Q_INVOKABLE void loadUserPlaylist(const QString &uid = QString());
 	Q_INVOKABLE void onPlaylistRowRequested(int index);
 	Q_INVOKABLE void loadNextSearchPage();
-	bool searchHasMore() const;
+	Q_INVOKABLE void toggleLike(const QString &songId);
+    Q_INVOKABLE bool isLiked(const QString &songId);
+    Q_INVOKABLE void searchSuggest(const QString &keyword);
+    bool searchHasMore() const;
+    QStringList searchSuggestions() const;
 
 signals:
-	void loadingChanged();
+    void loadingChanged();
 	void currentUrlChanged();
+	void songLikeStateChanged(const QString &songId, bool isLiked);
+	void toastMessage(const QString &message);
 	void playingChanged();
 	void volumeChanged();
 	void positionMsChanged();
@@ -166,9 +173,10 @@ signals:
 	void playbackModeChanged();
     void playlistPageSizeChanged();
 	void loggedInChanged();
-	void searchHasMoreChanged();
-	void userProfileChanged();
-	void loginQrKeyReceived(const QString &key);
+    void searchHasMoreChanged();
+    void searchSuggestionsChanged();
+    void userProfileChanged();
+    void loginQrKeyReceived(const QString &key);
 	void loginQrCreateReceived(const QString &qrImg, const QString &qrUrl);
 	void loginQrCheckReceived(int code, const QString &message, const QString &cookie);
 	void loginSuccess(const QString &userId);
@@ -189,12 +197,13 @@ private:
 	PlaylistListModel m_createdPlaylistModel;
 	PlaylistListModel m_collectedPlaylistModel;
 	QMediaPlayer m_player;
-	DiskCache imageCache;
-	DiskCache lyricCache;
-	QSharedPointer<RequestToken> searchToken;
-	QSharedPointer<RequestToken> playUrlToken;
-	QSharedPointer<RequestToken> lyricToken;
-	QSharedPointer<RequestToken> coverToken;
+    DiskCache imageCache;
+    DiskCache lyricCache;
+    QSharedPointer<RequestToken> searchToken;
+    QSharedPointer<RequestToken> m_currentSearchSuggestToken;
+    QSharedPointer<RequestToken> playUrlToken;
+    QSharedPointer<RequestToken> lyricToken;
+    QSharedPointer<RequestToken> coverToken;
 	QSharedPointer<RequestToken> songDetailToken;
 	QSharedPointer<RequestToken> playlistDetailToken;
 	QSharedPointer<RequestToken> playlistTracksToken;
@@ -272,6 +281,12 @@ private:
     QMap<int, QSharedPointer<RequestToken>> m_playlistPageTokens;
     void loadPlaylistPage(int page);
 
+    // Liked songs management
+    QString m_favoritePlaylistId;
+    QSet<QString> m_likedSongIds;
+    void loadFavoritePlaylist();
+
+    QStringList m_searchSuggestions;
 };
 
 }

@@ -366,9 +366,71 @@ QSharedPointer<RequestToken> NeteaseProvider::search(const QString &keyword, int
 			callback(Result<QList<Song>>::failure(result.error));
 			return;
 		}
-		Result<QList<Song>> parsed = parseSearchSongs(result.value.body);
-		callback(parsed);
-	});
+        Result<QList<Song>> parsed = parseSearchSongs(result.value.body);
+        callback(parsed);
+    });
+}
+
+QSharedPointer<RequestToken> NeteaseProvider::searchSuggest(const QString &keyword, const std::function<void(Result<QStringList>)> &callback)
+{
+    HttpRequestOptions opts;
+    opts.url = buildUrl(QStringLiteral("/search/suggest"), {{QStringLiteral("keywords"), keyword}, {QStringLiteral("type"), QStringLiteral("mobile")}});
+
+    // Add timestamp to prevent caching
+    QUrlQuery q(opts.url);
+    q.addQueryItem(QStringLiteral("timestamp"), QString::number(QDateTime::currentMSecsSinceEpoch()));
+    opts.url.setQuery(q);
+
+    return client->sendWithRetry(opts, 1, 500, [this, callback](Result<HttpResponse> result) {
+        if (!result.ok) {
+            callback(Result<QStringList>::failure(result.error));
+            return;
+        }
+
+        QJsonParseError err{};
+        QJsonDocument doc = QJsonDocument::fromJson(result.value.body, &err);
+        if (err.error != QJsonParseError::NoError || !doc.isObject()) {
+            callback(Result<QStringList>::failure({ErrorCategory::Parser, -1, QStringLiteral("Parse suggest response failed")}));
+            return;
+        }
+
+        QJsonObject root = doc.object();
+        QJsonObject res = root.value(QStringLiteral("result")).toObject();
+        QStringList suggestions;
+
+        if (res.contains(QStringLiteral("allMatch"))) {
+             QJsonArray allMatch = res.value(QStringLiteral("allMatch")).toArray();
+             for (const QJsonValue &v : allMatch) {
+                 QJsonObject item = v.toObject();
+                 suggestions.append(item.value(QStringLiteral("keyword")).toString());
+             }
+        }
+
+        if (suggestions.isEmpty()) {
+            auto appendNames = [&](const QString &key) {
+                if (res.contains(key)) {
+                    QJsonArray arr = res.value(key).toArray();
+                    for (const QJsonValue &v : arr) {
+                        suggestions.append(v.toObject().value(QStringLiteral("name")).toString());
+                    }
+                }
+            };
+            appendNames(QStringLiteral("songs"));
+            appendNames(QStringLiteral("artists"));
+            appendNames(QStringLiteral("playlists"));
+            appendNames(QStringLiteral("albums"));
+        }
+
+        // Remove duplicates and empty strings
+        QStringList unique;
+        for (const QString &s : suggestions) {
+            if (!s.isEmpty() && !unique.contains(s)) {
+                unique.append(s);
+            }
+        }
+
+        callback(Result<QStringList>::success(unique));
+    });
 }
 
 QSharedPointer<RequestToken> NeteaseProvider::songDetail(const QString &songId, const SongDetailCallback &callback)
@@ -2115,6 +2177,51 @@ QSharedPointer<RequestToken> NeteaseProvider::userPlaylist(const QString &uid, i
 		}
 		callback(parseUserPlaylist(result.value.body));
 	});
+}
+
+QSharedPointer<RequestToken> NeteaseProvider::playlistTracksOp(const QString &op, const QString &playlistId, const QString &trackIds, const BoolCallback &callback)
+{
+    HttpRequestOptions opts;
+    opts.url = buildUrl(QStringLiteral("/playlist/tracks"), {
+        {QStringLiteral("op"), op},
+        {QStringLiteral("pid"), playlistId},
+        {QStringLiteral("tracks"), trackIds}
+    });
+    
+    // 增加时间戳防止缓存
+    QUrlQuery q(opts.url);
+    q.addQueryItem(QStringLiteral("timestamp"), QString::number(QDateTime::currentMSecsSinceEpoch()));
+    opts.url.setQuery(q);
+
+    return client->sendWithRetry(opts, 2, 500, [this, callback](Result<HttpResponse> result) {
+        if (!result.ok) {
+            callback(Result<bool>::failure(result.error));
+            return;
+        }
+        
+        QJsonParseError err{};
+        QJsonDocument doc = QJsonDocument::fromJson(result.value.body, &err);
+        if (err.error != QJsonParseError::NoError || !doc.isObject()) {
+            callback(Result<bool>::failure({ErrorCategory::Parser, -1, QStringLiteral("Parse playlist op failed")}));
+            return;
+        }
+
+        QJsonObject root = doc.object();
+        
+        // Handle nested response format: {"status":200, "body":{...}}
+        if (root.contains(QStringLiteral("status")) && root.contains(QStringLiteral("body"))) {
+             root = root.value(QStringLiteral("body")).toObject();
+        }
+
+        int code = root.value(QStringLiteral("code")).toInt();
+        if (code != 200) {
+            // id 和 tracks 不对可能会报 502 错误
+            callback(Result<bool>::failure({ErrorCategory::UpstreamChange, code, root.value(QStringLiteral("message")).toString()}));
+            return;
+        }
+        
+        callback(Result<bool>::success(true));
+    });
 }
 
 Result<QList<PlaylistMeta>> NeteaseProvider::parseUserPlaylist(const QByteArray &body) const

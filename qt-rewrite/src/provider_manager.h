@@ -48,8 +48,10 @@ public:
 	ProviderManagerConfig config() const;
 
 	// 搜索歌曲，按配置顺序与 fallback 策略选择 Provider
-	QSharedPointer<RequestToken> search(const QString &keyword, int limit, int offset, const IProvider::SearchCallback &callback, const QStringList &preferredProviderIds = {});
-	// 获取歌曲详情，支持多 Provider fallback
+    QSharedPointer<RequestToken> search(const QString &keyword, int limit, int offset, const IProvider::SearchCallback &callback, const QStringList &preferredProviderIds = {});
+    // 搜索建议
+    QSharedPointer<RequestToken> searchSuggest(const QString &keyword, const IProvider::SearchSuggestCallback &callback, const QStringList &preferredProviderIds = {});
+    // 获取歌曲详情，支持多 Provider fallback
 	QSharedPointer<RequestToken> songDetail(const QString &songId, const IProvider::SongDetailCallback &callback, const QStringList &preferredProviderIds = {});
 	// 获取播放地址，支持多 Provider fallback
 	QSharedPointer<RequestToken> playUrl(const QString &songId, const IProvider::PlayUrlCallback &callback, const QStringList &preferredProviderIds = {});
@@ -61,6 +63,9 @@ public:
 	QSharedPointer<RequestToken> playlistDetail(const QString &playlistId, const IProvider::PlaylistDetailCallback &callback, const QStringList &preferredProviderIds = {});
 	// 分页拉取歌单曲目，支持多 Provider fallback
 	QSharedPointer<RequestToken> playlistTracks(const QString &playlistId, int limit, int offset, const IProvider::PlaylistTracksCallback &callback, const QStringList &preferredProviderIds = {});
+    
+    // 歌单增删歌曲
+    QSharedPointer<RequestToken> playlistTracksOp(const QString &op, const QString &playlistId, const QString &trackIds, const IProvider::BoolCallback &callback, const QStringList &preferredProviderIds = {});
 
 private:
 	// Provider 存储：id -> 实例指针

@@ -91,4 +91,18 @@ void PlaylistListModel::clear()
     endResetModel();
 }
 
+void PlaylistListModel::updateTrackCount(const QString &playlistId, int delta)
+{
+    for (int i = 0; i < m_playlists.size(); ++i) {
+        if (m_playlists[i].id == playlistId) {
+            m_playlists[i].trackCount += delta;
+            // Ensure non-negative
+            if (m_playlists[i].trackCount < 0) m_playlists[i].trackCount = 0;
+            
+            emit dataChanged(index(i), index(i), {TrackCountRole});
+            break;
+        }
+    }
+}
+
 }

@@ -41,6 +41,7 @@ public:
     void append(const QList<Song> &songs);
     void insert(int index, const Song &song);
     void removeAt(int index);
+    bool removeById(const QString &songId);
     void clear();
     Q_INVOKABLE void move(int from, int to);
 

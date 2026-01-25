@@ -33,6 +33,8 @@ public:
     void append(const PlaylistMeta &playlist);
     void clear();
 
+    void updateTrackCount(const QString &playlistId, int delta);
+
 private:
     QList<PlaylistMeta> m_playlists;
 };

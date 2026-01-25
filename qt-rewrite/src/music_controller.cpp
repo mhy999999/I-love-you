@@ -1010,12 +1010,35 @@ void MusicController::search(const QString &keyword)
 		}
 
 		m_songsModel.setSongs(result.value);
-	});
+    });
+}
+
+void MusicController::searchSuggest(const QString &keyword)
+{
+    if (keyword.isEmpty()) {
+        m_searchSuggestions.clear();
+        emit searchSuggestionsChanged();
+        return;
+    }
+
+    if (m_currentSearchSuggestToken)
+        m_currentSearchSuggestToken->cancel();
+
+    m_currentSearchSuggestToken = providerManager.searchSuggest(keyword, [this, keyword](Result<QStringList> result) {
+        if (!result.ok) {
+            // It's normal to have cancelled requests
+            if (result.error.category != ErrorCategory::Cancelled)
+                 Logger::warning(QStringLiteral("Search suggest failed for %1: %2").arg(keyword, result.error.message));
+            return;
+        }
+        m_searchSuggestions = result.value;
+        emit searchSuggestionsChanged();
+    });
 }
 
 void MusicController::loadNextSearchPage()
 {
-	if (m_loading || !m_searchHasMore || m_searchKeyword.isEmpty())
+    if (m_loading || !m_searchHasMore || m_searchKeyword.isEmpty())
 		return;
 
 	m_searchOffset += m_searchLimit;
@@ -1048,6 +1071,11 @@ void MusicController::loadNextSearchPage()
 bool MusicController::searchHasMore() const
 {
 	return m_searchHasMore;
+}
+
+QStringList MusicController::searchSuggestions() const
+{
+    return m_searchSuggestions;
 }
 
 void MusicController::playIndex(int index)
@@ -1212,15 +1240,26 @@ void MusicController::loadUserPlaylist(const QString &uid)
 
 		QList<PlaylistMeta> created;
 		QList<PlaylistMeta> collected;
+        m_favoritePlaylistId.clear();
+        
 		for (const auto &p : result.value) {
 			if (p.creatorId == targetUid) {
 				created.append(p);
+                // Assume the first created playlist is the favorite one (Netease default)
+                // Or looking for "喜欢的音乐" in name if needed, but usually it's the first one.
+                if (m_favoritePlaylistId.isEmpty()) {
+                    m_favoritePlaylistId = p.id;
+                }
 			} else {
 				collected.append(p);
 			}
 		}
 		m_createdPlaylistModel.setPlaylists(created);
 		m_collectedPlaylistModel.setPlaylists(collected);
+        
+        if (!m_favoritePlaylistId.isEmpty()) {
+            loadFavoritePlaylist();
+        }
 	});
 }
 
@@ -1930,6 +1969,66 @@ void MusicController::captchaVerify(const QString &phone, const QString &captcha
 void MusicController::playlistRemoveAt(int index)
 {
 	m_playlistModel.removeAt(index);
+}
+
+void MusicController::loadFavoritePlaylist()
+{
+	if (m_favoritePlaylistId.isEmpty()) return;
+
+    // Load first 1000 tracks of favorite playlist
+    providerManager.playlistTracks(m_favoritePlaylistId, 1000, 0, [this](Result<PlaylistTracksPage> result) {
+        if (!result.ok) return;
+        
+        m_likedSongIds.clear();
+        for (const auto &s : result.value.songs) {
+            m_likedSongIds.insert(s.id);
+            // Notify UI for each liked song so it can update state if displayed
+            emit songLikeStateChanged(s.id, true);
+        }
+    });
+}
+
+void MusicController::toggleLike(const QString &songId)
+{
+    if (m_favoritePlaylistId.isEmpty()) {
+        emit errorOccurred(QStringLiteral("Favorite playlist not loaded"));
+        return;
+    }
+    
+    bool currentlyLiked = m_likedSongIds.contains(songId);
+    QString op = currentlyLiked ? QStringLiteral("del") : QStringLiteral("add");
+    
+    // Optimistic update
+    if (currentlyLiked) m_likedSongIds.remove(songId);
+    else m_likedSongIds.insert(songId);
+    emit songLikeStateChanged(songId, !currentlyLiked);
+    
+    providerManager.playlistTracksOp(op, m_favoritePlaylistId, songId, [this, songId, currentlyLiked, op](Result<bool> result) {
+        if (!result.ok) {
+            // Revert on failure
+            if (currentlyLiked) m_likedSongIds.insert(songId);
+            else m_likedSongIds.remove(songId);
+            emit songLikeStateChanged(songId, currentlyLiked);
+            emit errorOccurred(result.error.message);
+        } else {
+            // Success
+            emit toastMessage(op == QStringLiteral("add") ? QStringLiteral("已添加到我喜欢") : QStringLiteral("已取消喜欢"));
+            
+            // Update playlist track count
+            m_createdPlaylistModel.updateTrackCount(m_favoritePlaylistId, op == QStringLiteral("add") ? 1 : -1);
+            
+            // If viewing favorite playlist and removed, remove from view
+            if (m_playlistId == m_favoritePlaylistId && op == QStringLiteral("del")) {
+                m_playlistModel.removeById(songId);
+            }
+        }
+    });
+}
+
+bool MusicController::isLiked(const QString &songId)
+{
+    // qDebug() << "isLiked check for:" << songId << " result:" << m_likedSongIds.contains(songId);
+    return m_likedSongIds.contains(songId);
 }
 
 void MusicController::checkLoginStatus()
