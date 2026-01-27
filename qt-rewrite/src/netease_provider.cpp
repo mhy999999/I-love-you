@@ -2465,4 +2465,89 @@ Result<QList<HotSearchItem>> NeteaseProvider::parseHotSearch(const QByteArray &b
     return result;
 }
 
+QSharedPointer<RequestToken> NeteaseProvider::yunbeiInfo(const YunbeiInfoCallback &callback)
+{
+    HttpRequestOptions opts;
+    QList<std::pair<QString, QString>> params;
+    params.append({QStringLiteral("timestamp"), QString::number(QDateTime::currentMSecsSinceEpoch())});
+    opts.url = buildUrl(QStringLiteral("/yunbei"), params);
+    return client->sendWithRetry(opts, 1, 0, [this, callback](Result<HttpResponse> result) {
+        if (!result.ok) {
+            callback(Result<QJsonObject>::failure(result.error));
+            return;
+        }
+        callback(parseGenericJson(result.value.body));
+    });
+}
+
+QSharedPointer<RequestToken> NeteaseProvider::yunbeiToday(const YunbeiInfoCallback &callback)
+{
+    HttpRequestOptions opts;
+    QList<std::pair<QString, QString>> params;
+    params.append({QStringLiteral("timestamp"), QString::number(QDateTime::currentMSecsSinceEpoch())});
+    opts.url = buildUrl(QStringLiteral("/yunbei/today"), params);
+    return client->sendWithRetry(opts, 1, 0, [this, callback](Result<HttpResponse> result) {
+        if (!result.ok) {
+            callback(Result<QJsonObject>::failure(result.error));
+            return;
+        }
+        callback(parseGenericJson(result.value.body));
+    });
+}
+
+QSharedPointer<RequestToken> NeteaseProvider::yunbeiSign(const YunbeiInfoCallback &callback)
+{
+    HttpRequestOptions opts;
+    QList<std::pair<QString, QString>> params;
+    params.append({QStringLiteral("timestamp"), QString::number(QDateTime::currentMSecsSinceEpoch())});
+    opts.url = buildUrl(QStringLiteral("/yunbei/sign"), params);
+    return client->sendWithRetry(opts, 1, 0, [this, callback](Result<HttpResponse> result) {
+        if (!result.ok) {
+            callback(Result<QJsonObject>::failure(result.error));
+            return;
+        }
+        callback(parseGenericJson(result.value.body));
+    });
+}
+
+QSharedPointer<RequestToken> NeteaseProvider::yunbeiAccount(const YunbeiInfoCallback &callback)
+{
+    HttpRequestOptions opts;
+    QList<std::pair<QString, QString>> params;
+    params.append({QStringLiteral("timestamp"), QString::number(QDateTime::currentMSecsSinceEpoch())});
+    opts.url = buildUrl(QStringLiteral("/yunbei/info"), params);
+    return client->sendWithRetry(opts, 1, 0, [this, callback](Result<HttpResponse> result) {
+        if (!result.ok) {
+            callback(Result<QJsonObject>::failure(result.error));
+            return;
+        }
+        callback(parseGenericJson(result.value.body));
+    });
+}
+
+QSharedPointer<RequestToken> NeteaseProvider::userLevel(const UserLevelCallback &callback)
+{
+    HttpRequestOptions opts;
+    QList<std::pair<QString, QString>> params;
+    params.append({QStringLiteral("timestamp"), QString::number(QDateTime::currentMSecsSinceEpoch())});
+    opts.url = buildUrl(QStringLiteral("/user/level"), params);
+    return client->sendWithRetry(opts, 1, 0, [this, callback](Result<HttpResponse> result) {
+        if (!result.ok) {
+            callback(Result<QJsonObject>::failure(result.error));
+            return;
+        }
+        callback(parseGenericJson(result.value.body));
+    });
+}
+
+Result<QJsonObject> NeteaseProvider::parseGenericJson(const QByteArray &body) const
+{
+    QJsonParseError err{};
+    QJsonDocument doc = QJsonDocument::fromJson(body, &err);
+    if (err.error != QJsonParseError::NoError || !doc.isObject()) {
+        return Result<QJsonObject>::failure({ErrorCategory::Parser, -1, QStringLiteral("Parse response failed")});
+    }
+    return Result<QJsonObject>::success(doc.object());
+}
+
 }

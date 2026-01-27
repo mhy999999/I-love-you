@@ -197,6 +197,9 @@ ApplicationWindow {
 						cursorShape: Qt.PointingHandCursor
 						onClicked: {
 							if (parent.hasAvatar) {
+								var pos = parent.mapToItem(appWindow.contentItem, parent.width, 0)
+								userMenuPopup.x = pos.x + 10
+								userMenuPopup.y = pos.y
 								userMenuPopup.open()
 							} else {
 								loginPopup.open()

@@ -187,6 +187,11 @@ public:
     QStringList searchHistory() const;
 
     Q_INVOKABLE void loadHotSearch();
+    Q_INVOKABLE void yunbeiInfo();
+    Q_INVOKABLE void yunbeiToday();
+    Q_INVOKABLE void yunbeiSign();
+    Q_INVOKABLE void yunbeiAccount();
+    Q_INVOKABLE void userLevel();
     bool searchHasMore() const;
     QStringList searchSuggestions() const;
     QVariantList hotSearchItems() const;
@@ -227,6 +232,11 @@ signals:
 	void loginFailed(const QString &message);
 	void captchaSentReceived(bool success, const QString &message);
 	void captchaVerifyReceived(bool success, const QString &message);
+    void yunbeiInfoReceived(const QVariantMap &data);
+    void yunbeiTodayReceived(const QVariantMap &data);
+    void yunbeiSignReceived(const QVariantMap &data);
+    void yunbeiAccountReceived(const QVariantMap &data);
+    void userLevelReceived(const QVariantMap &data);
 
 private:
 	HttpClient httpClient;

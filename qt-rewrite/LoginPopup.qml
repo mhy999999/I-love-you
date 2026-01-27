@@ -11,6 +11,16 @@ Popup {
     height: 520
     anchors.centerIn: Overlay.overlay
 
+    enter: Transition {
+        NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 200; easing.type: Easing.OutCubic }
+        NumberAnimation { property: "scale"; from: 0.9; to: 1; duration: 200; easing.type: Easing.OutBack; easing.overshoot: 1.0 }
+    }
+    
+    exit: Transition {
+        NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 150; easing.type: Easing.OutCubic }
+        NumberAnimation { property: "scale"; from: 1; to: 0.9; duration: 150; easing.type: Easing.OutCubic }
+    }
+
     background: Rectangle {
         color: "#ffffff"
         radius: 16

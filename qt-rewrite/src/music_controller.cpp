@@ -2376,4 +2376,60 @@ void MusicController::checkLoginStatus()
 	});
 }
 
+void MusicController::yunbeiInfo()
+{
+    neteaseProvider->yunbeiInfo([this](Result<QJsonObject> result) {
+        if (result.ok) {
+            emit yunbeiInfoReceived(result.value.toVariantMap());
+        } else {
+            emit errorOccurred(result.error.message);
+        }
+    });
+}
+
+void MusicController::yunbeiToday()
+{
+    neteaseProvider->yunbeiToday([this](Result<QJsonObject> result) {
+        if (result.ok) {
+            emit yunbeiTodayReceived(result.value.toVariantMap());
+        } else {
+            emit errorOccurred(result.error.message);
+        }
+    });
+}
+
+void MusicController::yunbeiSign()
+{
+    neteaseProvider->yunbeiSign([this](Result<QJsonObject> result) {
+        if (result.ok) {
+            emit yunbeiSignReceived(result.value.toVariantMap());
+        } else {
+            emit errorOccurred(result.error.message);
+        }
+    });
+}
+
+void MusicController::yunbeiAccount()
+{
+    neteaseProvider->yunbeiAccount([this](Result<QJsonObject> result) {
+        if (result.ok) {
+            emit yunbeiAccountReceived(result.value.toVariantMap());
+        } else {
+            emit errorOccurred(result.error.message);
+        }
+    });
+}
+
+void MusicController::userLevel()
+{
+    neteaseProvider->userLevel([this](Result<QJsonObject> result) {
+        if (result.ok) {
+            emit userLevelReceived(result.value.toVariantMap());
+        } else {
+            // Level info failure is not critical, maybe just log or ignore
+            // emit errorOccurred(result.error.message);
+        }
+    });
+}
+
 }

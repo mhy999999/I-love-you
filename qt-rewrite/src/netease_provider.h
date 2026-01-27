@@ -77,6 +77,15 @@ public:
 	QSharedPointer<RequestToken> logout(const std::function<void(Result<bool>)> &callback);
 	QSharedPointer<RequestToken> loginStatus(const LoginCallback &callback);
 
+    using YunbeiInfoCallback = std::function<void(Result<QJsonObject>)>;
+    QSharedPointer<RequestToken> yunbeiInfo(const YunbeiInfoCallback &callback);
+    QSharedPointer<RequestToken> yunbeiToday(const YunbeiInfoCallback &callback);
+    QSharedPointer<RequestToken> yunbeiSign(const YunbeiInfoCallback &callback);
+    QSharedPointer<RequestToken> yunbeiAccount(const YunbeiInfoCallback &callback);
+
+    using UserLevelCallback = std::function<void(Result<QJsonObject>)>;
+    QSharedPointer<RequestToken> userLevel(const UserLevelCallback &callback);
+
 private:
 	HttpClient *client;
 	QUrl apiBase;
@@ -95,6 +104,7 @@ private:
 	Result<UserProfile> parseLoginResult(const QByteArray &body) const;
 	Result<QList<PlaylistMeta>> parseUserPlaylist(const QByteArray &body) const;
     Result<QList<HotSearchItem>> parseHotSearch(const QByteArray &body) const;
+    Result<QJsonObject> parseGenericJson(const QByteArray &body) const;
 };
 
 }
