@@ -105,6 +105,13 @@ struct LoginQrKey
 	QString unikey;
 };
 
+struct CountryCode
+{
+    QString zh;
+    QString code;
+    QString locale;
+};
+
 struct LoginQrCreate
 {
 	QString qrImg;

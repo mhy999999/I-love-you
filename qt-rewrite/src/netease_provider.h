@@ -86,6 +86,9 @@ public:
     using UserLevelCallback = std::function<void(Result<QJsonObject>)>;
     QSharedPointer<RequestToken> userLevel(const UserLevelCallback &callback);
 
+    using CountryCodeListCallback = std::function<void(Result<QList<CountryCode>>)>;
+    QSharedPointer<RequestToken> countryCodeList(const CountryCodeListCallback &callback);
+
 private:
 	HttpClient *client;
 	QUrl apiBase;
@@ -104,6 +107,7 @@ private:
 	Result<UserProfile> parseLoginResult(const QByteArray &body) const;
 	Result<QList<PlaylistMeta>> parseUserPlaylist(const QByteArray &body) const;
     Result<QList<HotSearchItem>> parseHotSearch(const QByteArray &body) const;
+    Result<QList<CountryCode>> parseCountryCodeList(const QByteArray &body) const;
     Result<QJsonObject> parseGenericJson(const QByteArray &body) const;
 };
 

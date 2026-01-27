@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Effects
 
 Popup {
     id: loginPopup
@@ -51,6 +52,29 @@ Popup {
                 loginPopup.close()
             }
         }
+        function onLoginQrKeyReceivedQQ(key) {
+            console.log("QML: onLoginQrKeyReceivedQQ", key)
+            currentQrKey = key
+            musicController.loginQrCreateQQ(key)
+        }
+        function onLoginQrCreateReceivedQQ(qrimg, qrurl) {
+            console.log("QML: onLoginQrCreateReceivedQQ", qrimg ? "img present" : "img empty")
+            qrCodeImage.source = qrimg // base64
+        }
+        function onLoginQrCheckReceivedQQ(code, message, cookie) {
+            console.log("QML: onLoginQrCheckReceivedQQ", code, message)
+             if (code === 800) {
+                qrStatusMessage = qsTr("二维码已过期，请点击刷新")
+                qrRefreshButton.visible = true
+            } else if (code === 801) {
+                qrStatusMessage = qsTr("等待扫码...")
+            } else if (code === 802) {
+                qrStatusMessage = qsTr("扫码成功，请在手机上确认")
+            } else if (code === 803) {
+                qrStatusMessage = qsTr("登录成功")
+                loginPopup.close()
+            }
+        }
         function onCaptchaSentReceived(success, message) {
             if (success) {
                 loginInfoMessage = qsTr("验证码已发送")
@@ -73,6 +97,7 @@ Popup {
     }
 
     property string currentQrKey: ""
+    property int loginPlatform: 0 // 0: Netease, 1: QQ Music
     property string qrStatusMessage: qsTr("使用网易云音乐APP扫码登录")
     property bool isQrMode: stackLayout.currentIndex === 0
     property string loginErrorMessage: ""
@@ -91,7 +116,11 @@ Popup {
         qrRefreshButton.visible = false
         loginErrorVisible = false
         loginInfoVisible = false
-        musicController.loginQrKey()
+        if (loginPlatform === 0) {
+            musicController.loginQrKey()
+        } else {
+            musicController.loginQrKeyQQ()
+        }
     }
 
     Timer {
@@ -100,17 +129,25 @@ Popup {
         repeat: true
         running: loginPopup.opened && isQrMode && !musicController.loggedIn && currentQrKey !== ""
         onTriggered: {
-            musicController.loginQrCheck(currentQrKey)
+            if (loginPlatform === 0) {
+                musicController.loginQrCheck(currentQrKey)
+            } else {
+                musicController.loginQrCheckQQ(currentQrKey)
+            }
         }
     }
-    
-    // Fix: We need to store the key to check status.
-    // Let's modify the Connections above to store key.
     
 	StackLayout {
 		id: stackLayout
 		anchors.fill: parent
 		currentIndex: 0
+		onCurrentIndexChanged: {
+			if (currentIndex === 1) {
+				loginPlatform = 0
+				loginErrorVisible = false
+				loginInfoVisible = false
+			}
+		}
 
 		// Page 1: QR Code Login
 		Item {
@@ -140,9 +177,11 @@ Popup {
 					font.weight: Font.Bold
 					color: "#333333"
 					Layout.alignment: Qt.AlignHCenter
-				}
+			}
 
-				Item {
+
+
+			Item {
 					width: 200
 					height: 200
 					Layout.alignment: Qt.AlignHCenter
@@ -179,14 +218,82 @@ Popup {
 						}
 					}
 				}
+                
+                // Platform Switch
+                RowLayout {
+                    Layout.alignment: Qt.AlignHCenter
+                    spacing: 30
 
-				Text {
-					textFormat: Text.RichText
-					text: qsTr("使用 <font color='#2b6e9b'>网易云音乐APP</font> 扫码登录")
-					font.pixelSize: 14
-					color: "#333333"
-					Layout.alignment: Qt.AlignHCenter
-				}
+                    // Netease Icon
+                    Rectangle {
+                        width: 48
+                        height: 48
+                        radius: 24
+                        color: loginPlatform === 0 ? "#fce4e4" : "transparent"
+                        border.color: loginPlatform === 0 ? "#dd001b" : "transparent"
+                        border.width: 2
+                        
+                        Image {
+                            anchors.centerIn: parent
+                            width: 32
+                            height: 32
+                            source: "qrc:/qt/qml/qtrewrite/ui-asset/black-backgroud/login/网易云音乐.svg"
+                            mipmap: true
+                            fillMode: Image.PreserveAspectFit
+                        }
+                        
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                if (loginPlatform !== 0) {
+                                    loginPlatform = 0
+                                    refreshQrCode()
+                                }
+                            }
+                        }
+                    }
+
+                    // QQ Music Icon
+                    Rectangle {
+                        width: 48
+                        height: 48
+                        radius: 24
+                        color: loginPlatform === 1 ? "#e1f5ea" : "transparent"
+                        border.color: loginPlatform === 1 ? "#31c27c" : "transparent"
+                        border.width: 2
+                        
+                        Image {
+                            anchors.centerIn: parent
+                            width: 32
+                            height: 32
+                            source: "qrc:/qt/qml/qtrewrite/ui-asset/black-backgroud/login/QQ-music.svg"
+                            mipmap: true
+                            fillMode: Image.PreserveAspectFit
+                        }
+                        
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                if (loginPlatform !== 1) {
+                                    loginPlatform = 1
+                                    refreshQrCode()
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Text {
+                    textFormat: Text.RichText
+                    text: loginPlatform === 0 
+                        ? qsTr("使用 <font color='#dd001b'>网易云音乐APP</font> 扫码登录") 
+                        : qsTr("使用 <font color='#31c27c'>QQ音乐APP</font> 扫码登录")
+                    font.pixelSize: 14
+                    color: "#333333"
+                    Layout.alignment: Qt.AlignHCenter
+                }
 			}
 
 			Text {
@@ -245,286 +352,192 @@ Popup {
 				width: parent.width - 60
 				spacing: 20
 
-				// Logo Area
 				ColumnLayout {
 					Layout.alignment: Qt.AlignHCenter
-					spacing: 10
+					spacing: 12
 					
-					Image {
-						width: 80
-						height: 80
-						source: "qrc:/qt/qml/qtrewrite/ui-asset/black-backgroud/login/网易云音乐.svg"
-						fillMode: Image.PreserveAspectFit
+					RowLayout {
 						Layout.alignment: Qt.AlignHCenter
-						mipmap: true
+						spacing: 30
+
+						Rectangle {
+							width: 48
+							height: 48
+							radius: 24
+							color: loginPlatform === 0 ? "#fce4e4" : "transparent"
+							border.color: loginPlatform === 0 ? "#dd001b" : "transparent"
+							border.width: 2
+							
+							Image {
+								anchors.centerIn: parent
+								width: 32
+								height: 32
+								source: "qrc:/qt/qml/qtrewrite/ui-asset/black-backgroud/login/网易云音乐.svg"
+								mipmap: true
+								fillMode: Image.PreserveAspectFit
+							}
+							
+							MouseArea {
+								anchors.fill: parent
+								cursorShape: Qt.PointingHandCursor
+								onClicked: {
+									loginPlatform = 0
+									loginErrorVisible = false
+									loginInfoVisible = false
+								}
+							}
+						}
 					}
+
 					Text {
-						text: qsTr("AlgerReWrite")
-						font.pixelSize: 20
-						font.weight: Font.Bold
+						textFormat: Text.RichText
+						text: qsTr("使用 <font color='#dd001b'>网易云音乐</font> 登录")
+						font.pixelSize: 14
 						color: "#333333"
 						Layout.alignment: Qt.AlignHCenter
 					}
 				}
 
-				ListModel {
-					id: countryModel
-					ListElement { name: "中国"; code: "86" }
-					ListElement { name: "中国香港"; code: "852" }
-					ListElement { name: "中国澳门"; code: "853" }
-					ListElement { name: "中国台湾"; code: "886" }
-					ListElement { name: "日本"; code: "81" }
-					ListElement { name: "韩国"; code: "82" }
-					ListElement { name: "英国"; code: "44" }
-					ListElement { name: "美国"; code: "1" }
-				}
-
-				// Input Area
 				ColumnLayout {
 					Layout.fillWidth: true
 					spacing: 15
 
-					// Phone Input
+					ColumnLayout {
+						Layout.fillWidth: true
+						spacing: 15
+						visible: loginPlatform === 0
+
+						// Phone Input
 					Rectangle {
 						Layout.fillWidth: true
-						height: 40
-						border.color: "#e5e7eb"
+						height: 44
+						border.color: "#999999"
 						border.width: 1
-						radius: 20 // Rounded pill shape
+						radius: 22
 
 						RowLayout {
 							anchors.fill: parent
 							spacing: 0
 							
-							// Country Code
-							ComboBox {
-								id: countryCombo
-								width: 80
-								height: parent.height
-								model: countryModel
-								textRole: "code"
-								displayText: "+" + currentText
-								flat: true
-								
-								background: Rectangle {
-									color: "transparent"
-								}
-								
-								contentItem: Text {
-									text: parent.displayText
-									font.pixelSize: 14
-									color: "#333333"
-									verticalAlignment: Text.AlignVCenter
-									horizontalAlignment: Text.AlignHCenter
-								}
-								
-								popup: Popup {
-									y: parent.height - 1
-									width: 150
-									height: 200
-									padding: 1
-									
-									contentItem: ListView {
-										clip: true
-										implicitHeight: contentHeight
-										model: countryCombo.delegateModel
-										currentIndex: countryCombo.highlightedIndex
-										ScrollIndicator.vertical: ScrollIndicator { }
-									}
-									
-									background: Rectangle {
-										border.color: "#e5e7eb"
-										radius: 4
-										color: "white"
-									}
-								}
-								
-								delegate: ItemDelegate {
-									width: parent.width
-									text: model.name + " +" + model.code
-									font.pixelSize: 12
-									palette.text: "#333333"
-									highlighted: countryCombo.highlightedIndex === index
-									
-									background: Rectangle {
-										color: parent.highlighted ? "#f5f5f5" : "transparent"
-									}
-								}
-								
-								HoverHandler {
-									cursorShape: Qt.PointingHandCursor
-								}
-							}
+	                        Item {
+	                            Layout.preferredWidth: 90
+	                            Layout.fillHeight: true
+	                            Text {
+	                                anchors.left: parent.left
+	                                anchors.leftMargin: 10
+	                                anchors.verticalCenter: parent.verticalCenter
+	                                text: "+86"
+	                                color: "#000000"
+	                                font.pixelSize: 16
+	                                font.weight: Font.Medium
+	                                verticalAlignment: Text.AlignVCenter
+	                            }
+	                        }
 
-							// Divider
-							Rectangle {
-								width: 1
-								height: 20
-								color: "#e5e7eb"
-								Layout.alignment: Qt.AlignVCenter
-							}
-
-							// Text Field
-							TextField {
-								id: phoneInput
-								placeholderText: qsTr("请输入手机号")
-								Layout.fillWidth: true
-								Layout.leftMargin: 10
-								background: null
-								font.pixelSize: 14
-								color: "#333333"
-								selectByMouse: true
-								
-								HoverHandler {
-									cursorShape: Qt.IBeamCursor
-								}
-							}
-						}
+                        // Separator
+                        Rectangle {
+                            width: 1
+                            height: 20
+                            color: "#999999"
+                            Layout.alignment: Qt.AlignVCenter
+                        }
+                            
+                        TextField {
+                            id: phoneField
+                            Layout.fillWidth: true
+                            placeholderText: qsTr("请输入手机号")
+                            placeholderTextColor: "#999999"
+                            background: null
+                            font.pixelSize: 16
+                            color: "#000000"
+                            selectionColor: "#dd001b"
+                            selectedTextColor: "#ffffff"
+                            leftPadding: 10
+                            cursorDelegate: Rectangle {
+                                width: 2
+                                color: "#000000"
+                                visible: parent.activeFocus
+                            }
+                        }
+                    }
+                    }
+                    
+                    // Captcha Input
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+                        
+                        Rectangle {
+                            Layout.fillWidth: true
+                            height: 44
+                            border.color: "#999999"
+                            border.width: 1
+                            radius: 22
+                            
+                            TextField {
+                                id: captchaField
+                                anchors.fill: parent
+                                anchors.margins: 10
+                                placeholderText: qsTr("请输入验证码")
+                                placeholderTextColor: "#999999"
+                                background: null
+                                font.pixelSize: 16
+                                color: "#000000"
+                                selectionColor: "#dd001b"
+                                selectedTextColor: "#ffffff"
+                                cursorDelegate: Rectangle {
+                                    width: 2
+                                    color: "#000000"
+                                    visible: parent.activeFocus
+                                }
+                            }
+                        }
+                        
+                        Button {
+                            id: sendCaptchaBtn
+                            text: qsTr("获取验证码")
+                            height: 40
+                            background: Rectangle {
+                                color: enabled ? "#f2f2f2" : "#f5f5f5"
+                                radius: 20
+                                border.color: "#e5e7eb"
+                                border.width: 1
+                            }
+                            contentItem: Text {
+                                text: parent.text
+                                color: parent.enabled ? "#333333" : "#999999"
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                                font.pixelSize: 12
+                            }
+                            onClicked: {
+                                musicController.captchaSent(phoneField.text, "86")
+                            }
+                        }
+                    }
+                    
+                    Button {
+                        text: qsTr("登录")
+                        Layout.fillWidth: true
+                        height: 40
+                        background: Rectangle {
+                            color: "#dd001b"
+                            radius: 20
+                        }
+                        contentItem: Text {
+                            text: parent.text
+                            color: "white"
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        onClicked: {
+                            musicController.loginCellphoneCaptcha(phoneField.text, captchaField.text, "86")
+                        }
+                    }
 					}
 
-					// Password/Captcha Input
-					Rectangle {
-						Layout.fillWidth: true
-						height: 40
-						border.color: "#e5e7eb"
-						border.width: 1
-						radius: 20
-						// Always visible for Captcha mode
-
-						RowLayout {
-							anchors.fill: parent
-							spacing: 0
-							TextField {
-								id: captchaInput
-								Layout.fillWidth: true
-								Layout.leftMargin: 15
-								placeholderText: qsTr("请输入验证码")
-								background: null
-								font.pixelSize: 14
-								color: "#333333"
-								selectByMouse: true
-								verticalAlignment: TextInput.AlignVCenter
-								
-								HoverHandler {
-									cursorShape: Qt.IBeamCursor
-								}
-							}
-							
-							Rectangle {
-								width: 1
-								height: 20
-								color: "#e5e7eb"
-								Layout.alignment: Qt.AlignVCenter
-							}
-							
-							Button {
-								text: qsTr("获取验证码")
-								background: null
-								font.pixelSize: 12
-								palette.buttonText: "#666666"
-								onClicked: musicController.captchaSent(phoneInput.text, countryCombo.currentText)
-								
-								HoverHandler {
-									cursorShape: Qt.PointingHandCursor
-								}
-							}
-						}
-					}
-
-					// Auto Login
-					RowLayout {
-						Layout.fillWidth: true
-						CheckBox {
-							text: qsTr("自动登录")
-							font.pixelSize: 12
-							checked: true
-							palette.windowText: "#999999"
-							
-							indicator: Rectangle {
-								implicitWidth: 16
-								implicitHeight: 16
-								x: parent.leftPadding
-								y: parent.height / 2 - height / 2
-								radius: 3
-								border.color: parent.down ? "#dd001b" : "#999999"
-								
-								Rectangle {
-									width: 10
-									height: 10
-									x: 3
-									y: 3
-									radius: 2
-									color: "#dd001b"
-									visible: parent.parent.checked
-								}
-							}
-							
-							contentItem: Text {
-								text: parent.text
-								font: parent.font
-								opacity: enabled ? 1.0 : 0.3
-								color: parent.down ? "#dd001b" : "#999999"
-								verticalAlignment: Text.AlignVCenter
-								leftPadding: parent.indicator.width + 4
-							}
-							
-							HoverHandler {
-								cursorShape: Qt.PointingHandCursor
-							}
-						}
-					}
-					
-					// Login Button
-					Button {
-						Layout.fillWidth: true
-						Layout.preferredHeight: 40
-						background: Rectangle {
-							color: "#dd001b"
-							radius: 20
-						}
-						contentItem: Text {
-							text: qsTr("登录")
-							color: "white"
-							font.bold: true
-							font.pixelSize: 16
-							verticalAlignment: Text.AlignVCenter
-							horizontalAlignment: Text.AlignHCenter
-						}
-						onClicked: {
-							musicController.loginCellphoneCaptcha(phoneInput.text, captchaInput.text, countryCombo.currentText)
-						}
-						
-						HoverHandler {
-							cursorShape: Qt.PointingHandCursor
-						}
-					}
-				}
-				
-				Text {
-					id: errorText2
-					visible: loginErrorVisible || loginInfoVisible
-					text: loginErrorVisible ? loginErrorMessage : loginInfoMessage
-					color: loginErrorVisible ? "red" : "green"
-					font.pixelSize: 12
-					Layout.alignment: Qt.AlignHCenter
-				}
-			}
-
-			// Footer (Social & Agreement)
-			ColumnLayout {
-				anchors.bottom: parent.bottom
-				anchors.horizontalCenter: parent.horizontalCenter
-				anchors.bottomMargin: 20
-				spacing: 15
-				
-				// Social Icons (Placeholders)
-				RowLayout {
-					Layout.alignment: Qt.AlignHCenter
-					spacing: 20
-					
-					// Email login removed
-				}
-			}
-		}
-	}
+                }
+            }
+        }
+    }
 }

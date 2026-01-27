@@ -24,6 +24,7 @@ qt_add_executable(appqtrewrite
 	src/json_utils.cpp
 	src/disk_cache.cpp
 	src/netease_provider.cpp
+	src/qqmusic_provider.cpp
 	src/gdstudio_provider.cpp
 	src/provider_manager.cpp
 	src/song_list_model.cpp
@@ -31,6 +32,7 @@ qt_add_executable(appqtrewrite
 	src/playlist_list_model.cpp
 	src/music_controller.cpp
 	src/provider.h
+	src/qqmusic_provider.h
 	src/playlist_list_model.h
 )
 
@@ -62,6 +64,7 @@ qt_add_qml_module(appqtrewrite
         "ui-asset/black-backgroud/music_playerModes/心动模式.svg"
         "ui-asset/black-backgroud/music_playerModes/循环.svg"
         "ui-asset/black-backgroud/login/网易云音乐.svg"
+        "ui-asset/black-backgroud/login/QQ-music.svg"
         "ui-asset/black-backgroud/login/网易邮箱.svg"
         "ui-asset/black-backgroud/musiclist/add.svg"
         "ui-asset/black-backgroud/login/qrcode.svg"

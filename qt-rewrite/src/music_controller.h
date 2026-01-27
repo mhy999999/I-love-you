@@ -16,6 +16,7 @@
 #include "playlist_list_model.h"
 #include "gdstudio_provider.h"
 #include "netease_provider.h"
+#include "qqmusic_provider.h"
 #include "provider_manager.h"
 #include "song_list_model.h"
 
@@ -71,9 +72,10 @@ class MusicController : public QObject
 	Q_PROPERTY(QStringList searchSuggestions READ searchSuggestions NOTIFY searchSuggestionsChanged)
     Q_PROPERTY(QStringList searchHistory READ searchHistory NOTIFY searchHistoryChanged)
     Q_PROPERTY(QVariantList hotSearchItems READ hotSearchItems NOTIFY hotSearchItemsChanged)
+    Q_PROPERTY(QVariantList countryCodes READ countryCodes NOTIFY countryCodesChanged)
 
 public:
-	enum PlaybackMode
+    enum PlaybackMode
 	{
 		Sequence = 0,
 		Random = 1,
@@ -156,6 +158,12 @@ public:
 	Q_INVOKABLE void loginQrKey();
 	Q_INVOKABLE void loginQrCreate(const QString &key);
 	Q_INVOKABLE void loginQrCheck(const QString &key);
+
+	Q_INVOKABLE void loginQrKeyQQ();
+	Q_INVOKABLE void loginQrCreateQQ(const QString &key);
+	Q_INVOKABLE void loginQrCheckQQ(const QString &key);
+	Q_INVOKABLE void setQQMusicCookie(const QString &cookie);
+
 	Q_INVOKABLE void loginCellphone(const QString &phone, const QString &password, const QString &countryCode = QString());
 	Q_INVOKABLE void loginCellphoneCaptcha(const QString &phone, const QString &captcha, const QString &countryCode = QString());
 	Q_INVOKABLE void captchaSent(const QString &phone, const QString &countryCode = QString());
@@ -187,6 +195,9 @@ public:
     QStringList searchHistory() const;
 
     Q_INVOKABLE void loadHotSearch();
+    Q_INVOKABLE void loadCountryCodes();
+    QVariantList countryCodes() const;
+
     Q_INVOKABLE void yunbeiInfo();
     Q_INVOKABLE void yunbeiToday();
     Q_INVOKABLE void yunbeiSign();
@@ -224,10 +235,14 @@ signals:
     void searchHistoryChanged();
     void searchSuggestionsChanged();
     void hotSearchItemsChanged();
+    void countryCodesChanged();
     void userProfileChanged();
     void loginQrKeyReceived(const QString &key);
 	void loginQrCreateReceived(const QString &qrImg, const QString &qrUrl);
 	void loginQrCheckReceived(int code, const QString &message, const QString &cookie);
+	void loginQrKeyReceivedQQ(const QString &key);
+	void loginQrCreateReceivedQQ(const QString &qrImg, const QString &qrUrl);
+	void loginQrCheckReceivedQQ(int code, const QString &message, const QString &cookie);
 	void loginSuccess(const QString &userId);
 	void loginFailed(const QString &message);
 	void captchaSentReceived(bool success, const QString &message);
@@ -243,6 +258,7 @@ private:
 	ProviderManager providerManager;
 	GdStudioProvider *gdStudioProvider = nullptr;
 	NeteaseProvider *neteaseProvider = nullptr;
+	QQMusicProvider *qqMusicProvider = nullptr;
 	SongListModel m_songsModel;
 	LyricListModel m_lyricModel;
 	SongListModel m_playlistModel;
@@ -353,6 +369,7 @@ private:
     QStringList m_searchSuggestions;
     QStringList m_searchHistory;
     QVariantList m_hotSearchItems;
+    QVariantList m_countryCodes;
 
     void loadSearchHistory();
     void saveSearchHistory();

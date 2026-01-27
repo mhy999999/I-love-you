@@ -1,6 +1,8 @@
 const server = require('netease-cloud-music-api-alger/server')
+
+const port = Number.parseInt(process.env.NCM_PORT || '30490', 10)
 server.serveNcmApi({
-  port: 30490,
+  port,
   checkVersion: true,
 })
-console.log('Netease Cloud Music API server started on port 30490')
+console.log(`Netease Cloud Music API server started on port ${port}`)

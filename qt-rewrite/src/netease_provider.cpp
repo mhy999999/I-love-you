@@ -452,6 +452,51 @@ QSharedPointer<RequestToken> NeteaseProvider::hotSearch(const HotSearchCallback 
     });
 }
 
+QSharedPointer<RequestToken> NeteaseProvider::countryCodeList(const CountryCodeListCallback &callback)
+{
+    HttpRequestOptions opts;
+    opts.url = buildUrl(QStringLiteral("/countries/code/list"), {});
+    return client->sendWithRetry(opts, 2, 500, [this, callback](Result<HttpResponse> result) {
+        if (!result.ok)
+        {
+            callback(Result<QList<CountryCode>>::failure(result.error));
+            return;
+        }
+        callback(parseCountryCodeList(result.value.body));
+    });
+}
+
+Result<QList<CountryCode>> NeteaseProvider::parseCountryCodeList(const QByteArray &body) const
+{
+    QJsonParseError err{};
+    QJsonDocument doc = QJsonDocument::fromJson(body, &err);
+    if (err.error != QJsonParseError::NoError || !doc.isObject())
+    {
+        return Result<QList<CountryCode>>::failure({ErrorCategory::Parser, -1, QStringLiteral("Parse country code list failed")});
+    }
+    
+    QJsonObject root = doc.object();
+    int code = root.value(QStringLiteral("code")).toInt();
+    if (code != 200)
+    {
+        return Result<QList<CountryCode>>::failure({ErrorCategory::UpstreamChange, code, root.value(QStringLiteral("message")).toString()});
+    }
+    
+    QList<CountryCode> list;
+    QJsonArray data = root.value(QStringLiteral("data")).toArray();
+    for (const QJsonValue &v : data)
+    {
+        QJsonObject item = v.toObject();
+        CountryCode c;
+        c.zh = item.value(QStringLiteral("zh")).toString();
+        c.code = item.value(QStringLiteral("code")).toString();
+        c.locale = item.value(QStringLiteral("locale")).toString();
+        list.append(c);
+    }
+    return Result<QList<CountryCode>>::success(list);
+}
+
+
 QSharedPointer<RequestToken> NeteaseProvider::songDetail(const QString &songId, const SongDetailCallback &callback)
 {
 	HttpRequestOptions opts;

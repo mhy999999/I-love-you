@@ -118,32 +118,18 @@ QString findEmbeddedMusicApiDir(const QString &preferredDir)
 	return QString();
 }
 
-bool ensureEmbeddedMusicApiDeps(const QString &apiDir, bool autoInstall)
+bool runNpmInstall(const QString &dirPath)
 {
-	QDir dir(apiDir);
-	QString nodeModulesPath = dir.filePath(QStringLiteral("node_modules"));
-	QString ncmApiPkg = dir.filePath(QStringLiteral("node_modules/netease-cloud-music-api-alger/package.json"));
-	QString unblockPkg = dir.filePath(QStringLiteral("node_modules/@unblockneteasemusic/server/package.json"));
-	bool depsOk = QFileInfo::exists(ncmApiPkg) && QFileInfo::exists(unblockPkg);
-	if (depsOk)
-		return true;
-
-	if (!autoInstall)
-	{
-		Logger::warning(QStringLiteral("Embedded music API dependencies not installed: %1").arg(nodeModulesPath));
-		return false;
-	}
-
-	QString lockFile = dir.filePath(QStringLiteral("package-lock.json"));
+	QString lockFile = QDir(dirPath).filePath(QStringLiteral("package-lock.json"));
 	QStringList args;
 	if (QFileInfo::exists(lockFile))
 		args = {QStringLiteral("ci")};
 	else
 		args = {QStringLiteral("install")};
 
-	Logger::info(QStringLiteral("Installing embedded music API dependencies via npm %1").arg(args.join(' ')));
+	Logger::info(QStringLiteral("Installing dependencies in %1").arg(dirPath));
 	QProcess npm;
-	npm.setWorkingDirectory(apiDir);
+	npm.setWorkingDirectory(dirPath);
 	npm.setProcessChannelMode(QProcess::MergedChannels);
 	npm.setProgram(QStringLiteral("npm"));
 	npm.setArguments(args);
@@ -162,24 +148,42 @@ bool ensureEmbeddedMusicApiDeps(const QString &apiDir, bool autoInstall)
 		return false;
 	}
 
-	QString output = QString::fromLocal8Bit(npm.readAll());
 	if (npm.exitStatus() != QProcess::NormalExit || npm.exitCode() != 0)
 	{
-		QString tail = output.right(4000);
-		Logger::warning(QStringLiteral("npm failed (code %1): %2").arg(npm.exitCode()).arg(tail));
-		return false;
-	}
-
-	if (!QFileInfo::exists(nodeModulesPath))
-	{
-		QString tail = output.right(2000);
-		Logger::warning(QStringLiteral("npm succeeded but node_modules still missing: %1 %2").arg(nodeModulesPath).arg(tail));
+		QString output = QString::fromLocal8Bit(npm.readAll());
+		Logger::warning(QStringLiteral("npm failed (code %1): %2").arg(npm.exitCode()).arg(output.right(2000)));
 		return false;
 	}
 	return true;
 }
 
-bool startNeteaseMusicApiOnPort(QObject *parent, int port, const QString &apiDirOverride, bool autoInstall, QProcess **outProcess)
+bool ensureEmbeddedMusicApiDeps(const QString &apiDir, bool autoInstall)
+{
+	QDir dir(apiDir);
+	
+	// 1. Netease API
+	QString ncmNodeModules = dir.filePath(QStringLiteral("node_modules"));
+	if (!QFileInfo::exists(ncmNodeModules))
+	{
+		if (!autoInstall) return false;
+		if (!runNpmInstall(apiDir)) return false;
+	}
+
+	// 2. QQ Music API
+	QString qqDir = dir.filePath(QStringLiteral("QQMusicApi"));
+	if (QFileInfo::exists(qqDir))
+	{
+		QString qqNodeModules = QDir(qqDir).filePath(QStringLiteral("node_modules"));
+		if (!QFileInfo::exists(qqNodeModules))
+		{
+			if (!autoInstall) return false;
+			if (!runNpmInstall(qqDir)) return false;
+		}
+	}
+	return true;
+}
+
+bool startLocalMusicApis(QObject *parent, int ncmPort, int qqPort, const QString &apiDirOverride, bool autoInstall, QProcess **outProcess)
 {
 	QString apiDir = findEmbeddedMusicApiDir(apiDirOverride);
 	if (apiDir.isEmpty())
@@ -188,31 +192,28 @@ bool startNeteaseMusicApiOnPort(QObject *parent, int port, const QString &apiDir
 		return false;
 	}
 
-	QString anonTokenPath = QDir(QDir::tempPath()).filePath(QStringLiteral("anonymous_token"));
-	if (!QFileInfo::exists(anonTokenPath))
-	{
-		QFile f(anonTokenPath);
-		if (f.open(QIODevice::WriteOnly))
-			f.close();
-	}
-
 	if (!ensureEmbeddedMusicApiDeps(apiDir, autoInstall))
 		return false;
 
+	// Use start_apis.js to start both Netease and QQ APIs
+	QString startScript = QDir(apiDir).filePath(QStringLiteral("start_apis.js"));
+	if (!QFileInfo::exists(startScript))
+	{
+		Logger::warning(QStringLiteral("start_apis.js not found at %1").arg(startScript));
+		return false;
+	}
+
 	QProcess *p = new QProcess(parent);
-	p->setWorkingDirectory(apiDir);
+	p->setWorkingDirectory(QFileInfo(startScript).path());
 	p->setProcessChannelMode(QProcess::MergedChannels);
-
-	QString js = QStringLiteral(
-		"const mod=require('netease-cloud-music-api-alger/server');"
-		"const api=mod.default||mod;"
-		"console.log('Starting Netease API on port %1');"
-		"api.serveNcmApi({port:%1, checkVersion:true}).then(()=>console.log('API Started')).catch(e=>{console.error(e);process.exit(1);});"
-	).arg(port);
-
 	p->setProgram(QStringLiteral("node"));
-	p->setArguments({QStringLiteral("-e"), js});
+	p->setArguments({QStringLiteral("start_apis.js")});
+	QStringList env = QProcess::systemEnvironment();
+	env.append(QStringLiteral("NCM_PORT=%1").arg(ncmPort));
+	env.append(QStringLiteral("QQ_PORT=%1").arg(qqPort));
+	p->setEnvironment(env);
 	p->start();
+	
 	if (!p->waitForStarted(1500))
 	{
 		Logger::warning(QStringLiteral("Failed to start local music API process: %1").arg(p->errorString()));
@@ -222,7 +223,10 @@ bool startNeteaseMusicApiOnPort(QObject *parent, int port, const QString &apiDir
 
 	QElapsedTimer elapsed;
 	elapsed.start();
-	while (elapsed.elapsed() < 6000)
+	bool neteaseReady = false;
+	bool qqReady = false;
+	
+	while (elapsed.elapsed() < 15000)
 	{
 		if (p->state() == QProcess::NotRunning)
 		{
@@ -231,14 +235,28 @@ bool startNeteaseMusicApiOnPort(QObject *parent, int port, const QString &apiDir
 				Logger::warning(QStringLiteral("Local music API process exited: %1").arg(redactSensitive(out).right(2000)));
 			break;
 		}
-		if (probeHttp(QUrl(QStringLiteral("http://127.0.0.1:%1/").arg(port)), 300))
+		
+		if (!neteaseReady && probeHttp(QUrl(QStringLiteral("http://127.0.0.1:%1/").arg(ncmPort)), 300))
+			neteaseReady = true;
+			
+		if (!qqReady && probeHttp(QUrl(QStringLiteral("http://127.0.0.1:%1/").arg(qqPort)), 300))
+			qqReady = true;
+
+		if (neteaseReady && qqReady)
 		{
-			if (outProcess)
-				*outProcess = p;
+			if (outProcess) *outProcess = p;
 			return true;
 		}
-		QThread::msleep(150);
+		QThread::msleep(200);
 	}
+	
+	if (neteaseReady || qqReady)
+	{
+		if (outProcess) *outProcess = p;
+		Logger::info(QStringLiteral("Local music API started (Netease: %1, QQ: %2)").arg(neteaseReady).arg(qqReady));
+		return true;
+	}
+
 	if (p->state() != QProcess::NotRunning)
 	{
 		p->terminate();
@@ -331,6 +349,8 @@ MusicController::MusicController(QObject *parent)
 	QString apiDirOverride = settings.value(QStringLiteral("musicApiDir"), QString()).toString().trimmed();
 	bool autoStart = settings.value(QStringLiteral("musicApiAutoStart"), true).toBool();
 	bool autoInstall = settings.value(QStringLiteral("musicApiAutoInstall"), true).toBool();
+	int ncmPortSetting = settings.value(QStringLiteral("musicApiPort"), 30490).toInt();
+	int qqPort = settings.value(QStringLiteral("qqMusicApiPort"), 3200).toInt();
 	int playbackMode = settings.value(QStringLiteral("playbackMode"), static_cast<int>(Sequence)).toInt();
 	settings.endGroup();
 	if (playbackMode < static_cast<int>(Sequence) || playbackMode > static_cast<int>(LoopOne))
@@ -353,9 +373,9 @@ MusicController::MusicController(QObject *parent)
 
 		if (shouldAutoStart)
 		{
-			int port = apiBase.port(30488);
+			int port = apiBase.port(ncmPortSetting);
 			Logger::info(QStringLiteral("Local music API not detected, trying to start on port %1").arg(port));
-			if (startNeteaseMusicApiOnPort(this, port, apiDirOverride, autoInstall, &musicApiProcess))
+			if (startLocalMusicApis(this, port, qqPort, apiDirOverride, autoInstall, &musicApiProcess))
 			{
 				apiBase = QUrl(QStringLiteral("http://127.0.0.1:%1").arg(port));
 				Logger::info(QStringLiteral("Local music API started on port %1").arg(port));
@@ -371,8 +391,21 @@ MusicController::MusicController(QObject *parent)
 		}
 	}
 	neteaseProvider = new NeteaseProvider(&httpClient, apiBase, &providerManager);
+	QUrl qqApiBase(QStringLiteral("http://127.0.0.1:%1").arg(qqPort));
+	qqMusicProvider = new QQMusicProvider(&httpClient, qqApiBase, this);
+
+	if (!probeHttp(qqApiBase.resolved(QUrl(QStringLiteral("/"))), 400) && autoStart)
+	{
+		if (!musicApiProcess || musicApiProcess->state() == QProcess::NotRunning)
+		{
+			Logger::info(QStringLiteral("QQ Music API not detected, trying to start local music APIs (Netease %1, QQ %2)").arg(ncmPortSetting).arg(qqPort));
+			startLocalMusicApis(this, ncmPortSetting, qqPort, apiDirOverride, autoInstall, &musicApiProcess);
+		}
+	}
+
 	gdStudioProvider = new GdStudioProvider(&httpClient, &providerManager);
 	providerManager.registerProvider(neteaseProvider);
+	providerManager.registerProvider(qqMusicProvider);
 	providerManager.registerProvider(gdStudioProvider);
 	ProviderManagerConfig cfg;
 	cfg.providerOrder = QStringList() << neteaseProvider->id() << gdStudioProvider->id();
@@ -381,11 +414,16 @@ MusicController::MusicController(QObject *parent)
 
 	settings.beginGroup(QStringLiteral("auth"));
 	QString cookie = settings.value(QStringLiteral("cookie")).toString();
+	QString cookieQQ = settings.value(QStringLiteral("cookieQQ")).toString();
 	settings.endGroup();
 	if (!cookie.isEmpty())
 	{
 		neteaseProvider->setCookie(cookie);
 		checkLoginStatus();
+	}
+	if (!cookieQQ.isEmpty())
+	{
+		qqMusicProvider->setCookie(cookieQQ);
 	}
 
 	m_player.setAudioOutput(new QAudioOutput(this));
@@ -2123,6 +2161,133 @@ void MusicController::loginQrCheck(const QString &key)
 	});
 }
 
+void MusicController::loginQrKeyQQ()
+{
+    Logger::info("MusicController: loginQrKeyQQ called");
+	QSettings settings;
+	settings.beginGroup(QStringLiteral("set"));
+	QString apiDirOverride = settings.value(QStringLiteral("musicApiDir"), QString()).toString().trimmed();
+	bool autoStart = settings.value(QStringLiteral("musicApiAutoStart"), true).toBool();
+	bool autoInstall = settings.value(QStringLiteral("musicApiAutoInstall"), true).toBool();
+	int ncmPort = settings.value(QStringLiteral("musicApiPort"), 30490).toInt();
+	int qqPort = settings.value(QStringLiteral("qqMusicApiPort"), 3200).toInt();
+	settings.endGroup();
+
+	QUrl qqProbeUrl(QStringLiteral("http://127.0.0.1:%1/").arg(qqPort));
+	if (!probeHttp(qqProbeUrl, 400) && autoStart)
+	{
+		if (!musicApiProcess || musicApiProcess->state() == QProcess::NotRunning)
+			startLocalMusicApis(this, ncmPort, qqPort, apiDirOverride, autoInstall, &musicApiProcess);
+	}
+	if (loginToken)
+		loginToken->cancel();
+	loginToken = qqMusicProvider->loginQrKey([this](Result<LoginQrKey> result) {
+		if (!result.ok)
+		{
+            Logger::error("MusicController: loginQrKeyQQ failed: " + result.error.message);
+			emit loginFailed(result.error.message);
+			return;
+		}
+        Logger::info("MusicController: loginQrKeyQQ success, key: " + result.value.unikey);
+		emit loginQrKeyReceivedQQ(result.value.unikey);
+	});
+}
+
+void MusicController::loginQrCreateQQ(const QString &key)
+{
+    Logger::info("MusicController: loginQrCreateQQ called with key: " + key);
+	if (loginToken)
+		loginToken->cancel();
+	loginToken = qqMusicProvider->loginQrCreate(key, [this](Result<LoginQrCreate> result) {
+		if (!result.ok)
+		{
+            Logger::error("MusicController: loginQrCreateQQ failed: " + result.error.message);
+			emit loginFailed(result.error.message);
+			return;
+		}
+        Logger::info("MusicController: loginQrCreateQQ success, img length: " + QString::number(result.value.qrImg.length()));
+		emit loginQrCreateReceivedQQ(result.value.qrImg, result.value.qrUrl);
+	});
+}
+
+void MusicController::loginQrCheckQQ(const QString &key)
+{
+	if (loginToken)
+		loginToken->cancel();
+	loginToken = qqMusicProvider->loginQrCheck(key, [this](Result<LoginQrCheck> result) {
+		if (!result.ok)
+		{
+			emit loginFailed(result.error.message);
+			return;
+		}
+		emit loginQrCheckReceivedQQ(result.value.code, result.value.message, result.value.cookie);
+		if (result.value.code == 803)
+		{
+			qqMusicProvider->setCookie(result.value.cookie);
+			QSettings settings;
+			settings.beginGroup(QStringLiteral("auth"));
+			settings.setValue(QStringLiteral("cookieQQ"), result.value.cookie);
+			settings.endGroup();
+		}
+	});
+}
+
+void MusicController::setQQMusicCookie(const QString &cookie)
+{
+	QString trimmed = cookie.trimmed();
+	if (trimmed.isEmpty())
+	{
+		emit loginFailed(QStringLiteral("Cookie 不能为空"));
+		return;
+	}
+
+	QSettings settings;
+	settings.beginGroup(QStringLiteral("set"));
+	int qqPort = settings.value(QStringLiteral("qqMusicApiPort"), 3200).toInt();
+	settings.endGroup();
+
+	HttpRequestOptions opts;
+	opts.url = QUrl(QStringLiteral("http://127.0.0.1:%1/user/setCookie").arg(qqPort));
+	opts.method = QByteArrayLiteral("POST");
+	opts.headers.insert(QByteArrayLiteral("Content-Type"), QByteArrayLiteral("application/json"));
+	opts.body = QJsonDocument(QJsonObject{{QStringLiteral("data"), trimmed}}).toJson(QJsonDocument::Compact);
+	opts.timeoutMs = 15000;
+
+	if (loginToken)
+		loginToken->cancel();
+
+	loginToken = httpClient.sendWithRetry(opts, 1, 300, [this, trimmed](Result<HttpResponse> result) {
+		if (!result.ok)
+		{
+			emit loginFailed(result.error.message);
+			return;
+		}
+
+		QJsonParseError error;
+		QJsonDocument doc = QJsonDocument::fromJson(result.value.body, &error);
+		if (error.error != QJsonParseError::NoError)
+		{
+			emit loginFailed(QStringLiteral("解析响应失败"));
+			return;
+		}
+
+		QJsonObject root = doc.object();
+		int code = root.value(QStringLiteral("result")).toInt();
+		if (code != 100)
+		{
+			emit loginFailed(root.value(QStringLiteral("errMsg")).toString(QStringLiteral("设置 Cookie 失败")));
+			return;
+		}
+
+		qqMusicProvider->setCookie(trimmed);
+		QSettings settings;
+		settings.beginGroup(QStringLiteral("auth"));
+		settings.setValue(QStringLiteral("cookieQQ"), trimmed);
+		settings.endGroup();
+		emit toastMessage(QStringLiteral("QQ音乐 Cookie 已设置"));
+	});
+}
+
 void MusicController::loginCellphone(const QString &phone, const QString &password, const QString &countryCode)
 {
 	if (loginToken)
@@ -2430,6 +2595,32 @@ void MusicController::userLevel()
             // emit errorOccurred(result.error.message);
         }
     });
+}
+
+void MusicController::loadCountryCodes()
+{
+	if (!neteaseProvider) return;
+
+	neteaseProvider->countryCodeList([this](Result<QList<CountryCode>> result) {
+		if (result.ok) {
+			m_countryCodes.clear();
+			for (const auto &code : result.value) {
+				QVariantMap map;
+				map[QStringLiteral("zh")] = code.zh;
+				map[QStringLiteral("code")] = code.code;
+				map[QStringLiteral("locale")] = code.locale;
+				m_countryCodes.append(map);
+			}
+			emit countryCodesChanged();
+		} else {
+             Logger::error(QStringLiteral("Failed to load country codes: %1").arg(result.error.message));
+        }
+	});
+}
+
+QVariantList MusicController::countryCodes() const
+{
+    return m_countryCodes;
 }
 
 }
