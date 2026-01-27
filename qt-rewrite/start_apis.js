@@ -17,13 +17,13 @@ try {
 // --- 启动 QQ 音乐 API (Port: 3200) ---
 try {
   console.log('-> 正在加载 QQ 音乐 API...');
-  const qqMusicApiDir = path.join(__dirname, 'qq-music-api');
+  const qqMusicApiDir = path.join(__dirname, 'music-api', 'QQMusicApi');
   
   // 设置端口
   process.env.PORT = 3200;
   
-  // 直接引入 app.js
-  require(path.join(qqMusicApiDir, 'app.js'));
+  // 直接引入 bin/www 启动脚本
+  require(path.join(qqMusicApiDir, 'bin', 'www'));
   
 } catch (err) {
   console.error('启动 QQ 音乐 API 失败:', err);
