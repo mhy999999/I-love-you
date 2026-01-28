@@ -17,7 +17,7 @@ try {
 // --- 启动 QQ 音乐 API (Port: 3200) ---
 try {
   console.log('-> 正在加载 QQ 音乐 API...');
-  const qqMusicApiDir = path.join(__dirname, 'qq-music-api');
+  const qqMusicApiDir = path.join(__dirname, 'music-api', 'QQMusicApi');
   
   // 设置端口
   process.env.PORT = 3200;
