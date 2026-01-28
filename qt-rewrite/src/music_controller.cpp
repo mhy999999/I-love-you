@@ -435,19 +435,23 @@ MusicController::MusicController(QObject *parent)
 	}
 	neteaseProvider = new NeteaseProvider(&httpClient, apiBase, &providerManager);
 	gdStudioProvider = new GdStudioProvider(&httpClient, &providerManager);
+    qqProvider = new QQProvider(&httpClient, apiBase, &providerManager);
 	providerManager.registerProvider(neteaseProvider);
 	providerManager.registerProvider(gdStudioProvider);
+    providerManager.registerProvider(qqProvider);
 	ProviderManagerConfig cfg;
-	cfg.providerOrder = QStringList() << neteaseProvider->id() << gdStudioProvider->id();
+	cfg.providerOrder = QStringList() << neteaseProvider->id() << gdStudioProvider->id() << qqProvider->id();
 	cfg.fallbackEnabled = true;
 	providerManager.setConfig(cfg);
 
 	settings.beginGroup(QStringLiteral("auth"));
 	QString cookie = settings.value(QStringLiteral("cookie")).toString();
+    m_loginType = settings.value(QStringLiteral("loginType"), QStringLiteral("netease")).toString();
 	settings.endGroup();
 	if (!cookie.isEmpty())
 	{
 		neteaseProvider->setCookie(cookie);
+        qqProvider->setCookie(cookie);
 		checkLoginStatus();
 	}
 
@@ -540,6 +544,11 @@ MusicController::~MusicController()
 		delete musicApiProcess;
 		musicApiProcess = nullptr;
 	}
+}
+
+QString MusicController::loginType() const
+{
+    return m_loginType;
 }
 
 SongListModel *MusicController::songsModel()
@@ -1471,12 +1480,6 @@ void MusicController::loadUserPlaylist(const QString &uid)
 		return;
 	}
 
-	if (!neteaseProvider)
-	{
-		emit errorOccurred(QStringLiteral("Netease provider not available"));
-		return;
-	}
-
 	if (userPlaylistToken)
 	{
 		userPlaylistToken->cancel();
@@ -1486,7 +1489,7 @@ void MusicController::loadUserPlaylist(const QString &uid)
 	m_userPlaylistRequestId++;
 	quint64 reqId = m_userPlaylistRequestId;
 
-	userPlaylistToken = neteaseProvider->userPlaylist(targetUid, 1000, 0, [this, reqId, targetUid](Result<QList<PlaylistMeta>> result) {
+    auto callback = [this, reqId, targetUid](Result<QList<PlaylistMeta>> result) {
 		if (reqId != m_userPlaylistRequestId)
 			return;
 		userPlaylistToken.clear();
@@ -1521,7 +1524,26 @@ void MusicController::loadUserPlaylist(const QString &uid)
         if (!m_favoritePlaylistId.isEmpty()) {
             loadFavoritePlaylist();
         }
-	});
+	};
+
+    if (m_loginType == QStringLiteral("qq"))
+    {
+        if (!qqProvider)
+        {
+            emit errorOccurred(QStringLiteral("QQ provider not available"));
+            return;
+        }
+        userPlaylistToken = qqProvider->userPlaylist(targetUid, callback);
+    }
+    else
+    {
+        if (!neteaseProvider)
+        {
+            emit errorOccurred(QStringLiteral("Netease provider not available"));
+            return;
+        }
+        userPlaylistToken = neteaseProvider->userPlaylist(targetUid, 1000, 0, callback);
+    }
 }
 
 void MusicController::createPlaylist(const QString &name, const QString &type, bool privacy)

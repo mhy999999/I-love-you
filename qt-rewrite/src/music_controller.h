@@ -16,6 +16,7 @@
 #include "playlist_list_model.h"
 #include "gdstudio_provider.h"
 #include "netease_provider.h"
+#include "qq_provider.h"
 #include "provider_manager.h"
 #include "song_list_model.h"
 
@@ -61,6 +62,7 @@ class MusicController : public QObject
 	Q_PROPERTY(QString currentSongTitle READ currentSongTitle NOTIFY currentSongTitleChanged)
 	Q_PROPERTY(QString currentSongArtists READ currentSongArtists NOTIFY currentSongArtistsChanged)
 	Q_PROPERTY(bool loggedIn READ loggedIn NOTIFY loggedInChanged)
+	Q_PROPERTY(QString loginType READ loginType NOTIFY userProfileChanged)
 	Q_PROPERTY(QString userId READ userId NOTIFY userProfileChanged)
 	Q_PROPERTY(QString nickname READ nickname NOTIFY userProfileChanged)
 	Q_PROPERTY(QUrl avatarUrl READ avatarUrl NOTIFY userProfileChanged)
@@ -85,6 +87,7 @@ public:
 	explicit MusicController(QObject *parent = nullptr);
 	~MusicController();
 
+	QString loginType() const;
 	int playbackMode() const;
 	void setPlaybackMode(int mode);
     
@@ -245,6 +248,7 @@ private:
 	ProviderManager providerManager;
 	GdStudioProvider *gdStudioProvider = nullptr;
 	NeteaseProvider *neteaseProvider = nullptr;
+    QQProvider *qqProvider = nullptr;
 	SongListModel m_songsModel;
 	LyricListModel m_lyricModel;
 	SongListModel m_playlistModel;
@@ -307,6 +311,7 @@ private:
 	QString m_currentSongArtists;
 	int m_playbackMode = Sequence;
 	UserProfile m_userProfile;
+	QString m_loginType;
 	
 	QString m_searchKeyword;
 	int m_searchOffset = 0;
