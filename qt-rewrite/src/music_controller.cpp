@@ -201,17 +201,71 @@ bool startNeteaseMusicApiOnPort(QObject *parent, int port, const QString &apiDir
 
 	QProcess *p = new QProcess(parent);
 	p->setWorkingDirectory(apiDir);
-	p->setProcessChannelMode(QProcess::MergedChannels);
+    p->setProcessChannelMode(QProcess::MergedChannels);
 
-	QString js = QStringLiteral(
-		"const mod=require('netease-cloud-music-api-alger/server');"
-		"const api=mod.default||mod;"
-		"console.log('Starting Netease API on port %1');"
-		"api.serveNcmApi({port:%1, checkVersion:true}).then(()=>console.log('API Started')).catch(e=>{console.error(e);process.exit(1);});"
-	).arg(port);
+    // Pass PORT environment variable to the child process
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    env.insert("PORT", QString::number(port));
+    p->setProcessEnvironment(env);
 
-	p->setProgram(QStringLiteral("node"));
-	p->setArguments({QStringLiteral("-e"), js});
+    // Prefer start_server.js if it exists, as it's easier to debug and manage
+    QString startServerPath = QDir(apiDir).filePath(QStringLiteral("start_server.js"));
+    if (QFileInfo::exists(startServerPath))
+    {
+        Logger::info(QStringLiteral("Starting local music API using existing script: %1").arg(startServerPath));
+        p->setProgram(QStringLiteral("node"));
+        p->setArguments({QStringLiteral("start_server.js")});
+    }
+    else
+    {
+        Logger::info(QStringLiteral("Starting local music API using generated script"));
+        QString js = QStringLiteral(
+            "const mod=require('netease-cloud-music-api-alger/server');"
+            "const api=mod.default||mod;"
+            "const path=require('path');"
+            "console.log('Starting Netease API on port %1');"
+            "async function start() {"
+            "  const serverPath=require.resolve('netease-cloud-music-api-alger/server');"
+            "  const defaultModulePath=path.join(path.dirname(serverPath), 'module');"
+            "  const special={'daily_signin.js':'/daily_signin','fm_trash.js':'/fm_trash','personal_fm.js':'/personal_fm'};"
+            "  const modules=await api.getModulesDefinitions(defaultModulePath, special);"
+            "  modules.push({"
+            "    identifier:'user_setCookie',"
+            "    route:'/user/setCookie',"
+            "    module:async(query,request)=>{"
+            "      const cookie=query.data||'';"
+            "      return {"
+            "        status:200,"
+            "        body:{"
+            "          code:200,"
+            "          message:'Cookie received and saved',"
+            "          success:true,"
+            "          profile:{userId:'qq_music_user',nickname:'QQ Music User',avatarUrl:'',signature:'Logged in via QQ Music Cookie',vipType:0},"
+            "          cookie:cookie"
+            "        }"
+            "      };"
+            "    }"
+            "  });"
+            "  await api.serveNcmApi({port:%1, checkVersion:true, moduleDefs:modules});"
+            "}"
+            "start().then(()=>console.log('API Started')).catch(e=>{console.error(e);process.exit(1);});"
+        ).arg(port);
+        
+        // Write to a temporary file to avoid command line length issues
+        QString tempScriptPath = QDir(apiDir).filePath(QStringLiteral("custom_start_gen.js"));
+        QFile scriptFile(tempScriptPath);
+        if (scriptFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            scriptFile.write(js.toUtf8());
+            scriptFile.close();
+            p->setProgram(QStringLiteral("node"));
+            p->setArguments({QStringLiteral("custom_start_gen.js")});
+        } else {
+             Logger::warning(QStringLiteral("Failed to write custom start script, falling back to -e"));
+             p->setProgram(QStringLiteral("node"));
+             p->setArguments({QStringLiteral("-e"), js});
+        }
+    }
+
 	p->start();
 	if (!p->waitForStarted(1500))
 	{
@@ -222,22 +276,31 @@ bool startNeteaseMusicApiOnPort(QObject *parent, int port, const QString &apiDir
 
 	QElapsedTimer elapsed;
 	elapsed.start();
-	while (elapsed.elapsed() < 6000)
+	while (elapsed.elapsed() < 10000) // Increased timeout to 10s
 	{
 		if (p->state() == QProcess::NotRunning)
 		{
 			QString out = QString::fromLocal8Bit(p->readAll());
+            Logger::warning(QStringLiteral("Local music API process exited unexpectedly with code %1").arg(p->exitCode()));
 			if (!out.isEmpty())
-				Logger::warning(QStringLiteral("Local music API process exited: %1").arg(redactSensitive(out).right(2000)));
+				Logger::warning(QStringLiteral("Process Output: %1").arg(redactSensitive(out).right(2000)));
 			break;
 		}
+        
+        // Read output while running to catch startup errors early
+        if (p->bytesAvailable() > 0) {
+            QString chunk = QString::fromLocal8Bit(p->readAll());
+             Logger::debug(QStringLiteral("API Output: %1").arg(chunk.trimmed()));
+        }
+
 		if (probeHttp(QUrl(QStringLiteral("http://127.0.0.1:%1/").arg(port)), 300))
 		{
+            Logger::info(QStringLiteral("Local music API started successfully on port %1").arg(port));
 			if (outProcess)
 				*outProcess = p;
 			return true;
 		}
-		QThread::msleep(150);
+		QThread::msleep(250);
 	}
 	if (p->state() != QProcess::NotRunning)
 	{
@@ -259,7 +322,7 @@ QUrl resolveLocalMusicApiBaseUrl()
 
 	int port = startPort;
 	const int maxRetries = 10;
-	const int probeTimeoutMs = 400;
+	const int probeTimeoutMs = 1000;
 	for (int i = 0; i < maxRetries; ++i)
 	{
 		int candidate = startPort + i;
@@ -2268,6 +2331,42 @@ void MusicController::loginCellphoneCaptcha(const QString &phone, const QString 
 		emit userProfileChanged();
 		emit loginSuccess(m_userProfile.userId);
 	});
+}
+
+void MusicController::loginCookie(const QString &cookie)
+{
+    if (loginToken)
+        loginToken->cancel();
+    loginToken = neteaseProvider->loginCookie(cookie, [this, cookie](Result<UserProfile> result) {
+        if (!result.ok)
+        {
+            emit loginFailed(result.error.message);
+            return;
+        }
+        m_userProfile = result.value;
+        
+        QString finalCookie = m_userProfile.cookie;
+        if (finalCookie.isEmpty())
+            finalCookie = cookie;
+        
+        m_userProfile.cookie = finalCookie;
+
+        if (!finalCookie.isEmpty())
+        {
+            neteaseProvider->setCookie(finalCookie);
+            QSettings settings;
+            settings.beginGroup(QStringLiteral("auth"));
+            settings.setValue(QStringLiteral("cookie"), finalCookie);
+            settings.endGroup();
+        }
+        
+        // If login via cookie (implied QQ Music), set avatar to QQ Music icon
+        m_userProfile.avatarUrl = QUrl(QStringLiteral("qrc:/qt/qml/qtrewrite/ui-asset/black-backgroud/login/QQ-music.svg"));
+        
+        emit loggedInChanged();
+        emit userProfileChanged();
+        emit loginSuccess(m_userProfile.userId);
+    });
 }
 
 void MusicController::captchaSent(const QString &phone, const QString &countryCode)

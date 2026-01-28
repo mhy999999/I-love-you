@@ -523,8 +523,122 @@ Popup {
 					spacing: 20
 					
 					// Email login removed
+                    Image {
+                        source: "qrc:/qt/qml/qtrewrite/ui-asset/black-backgroud/login/QQ-music.svg"
+                        sourceSize.width: 40
+                        sourceSize.height: 40
+                        width: 40
+                        height: 40
+                        fillMode: Image.PreserveAspectFit
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: stackLayout.currentIndex = 2
+                        }
+                    }
 				}
 			}
 		}
+
+        // Page 3: Cookie Login
+        Item {
+            id: cookiePage
+            
+            // Close Button
+            Button {
+                text: "×"
+                font.pixelSize: 24
+                background: null
+                anchors.top: parent.top
+                anchors.right: parent.right
+                anchors.margins: 10
+                onClicked: loginPopup.close()
+                HoverHandler {
+                    cursorShape: Qt.PointingHandCursor
+                }
+            }
+            
+            // Back Button
+            Button {
+                text: "<"
+                font.pixelSize: 24
+                background: null
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.margins: 10
+                onClicked: stackLayout.currentIndex = 1
+                HoverHandler {
+                    cursorShape: Qt.PointingHandCursor
+                }
+            }
+
+            ColumnLayout {
+                anchors.centerIn: parent
+                width: parent.width - 60
+                spacing: 20
+
+                Text {
+                    text: qsTr("Cookie 登录")
+                    font.pixelSize: 20
+                    font.weight: Font.Bold
+                    color: "#333333"
+                    Layout.alignment: Qt.AlignHCenter
+                }
+
+                ScrollView {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 200
+                    background: Rectangle {
+                        border.color: "#e5e7eb"
+                        border.width: 1
+                        radius: 8
+                    }
+                    TextArea {
+                        id: cookieInput
+                        placeholderText: qsTr("请输入 Cookie (aaa=bbb; ccc=ddd; ...)")
+                        wrapMode: TextEdit.Wrap
+                        selectByMouse: true
+                        font.pixelSize: 14
+                        color: "#333333"
+                        background: null
+                    }
+                }
+
+                Button {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 40
+                    background: Rectangle {
+                        color: "#dd001b"
+                        radius: 20
+                    }
+                    contentItem: Text {
+                        text: qsTr("登录")
+                        color: "white"
+                        font.bold: true
+                        font.pixelSize: 16
+                        verticalAlignment: Text.AlignVCenter
+                        horizontalAlignment: Text.AlignHCenter
+                    }
+                    onClicked: {
+                        if (cookieInput.text.trim().length > 0) {
+                            musicController.loginCookie(cookieInput.text.trim())
+                        }
+                    }
+                    
+                    HoverHandler {
+                        cursorShape: Qt.PointingHandCursor
+                    }
+                }
+
+                Text {
+                    visible: loginErrorVisible || loginInfoVisible
+                    text: loginErrorVisible ? loginErrorMessage : loginInfoMessage
+                    color: loginErrorVisible ? "red" : "green"
+                    font.pixelSize: 12
+                    Layout.alignment: Qt.AlignHCenter
+                }
+            }
+        }
+
 	}
 }

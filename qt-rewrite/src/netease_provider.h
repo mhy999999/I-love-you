@@ -70,6 +70,7 @@ public:
 	QSharedPointer<RequestToken> loginQrCheck(const QString &key, const LoginQrCheckCallback &callback);
 	QSharedPointer<RequestToken> loginCellphone(const QString &phone, const QString &password, const QString &countryCode, const LoginCallback &callback);
 	QSharedPointer<RequestToken> loginCellphoneCaptcha(const QString &phone, const QString &captcha, const QString &countryCode, const LoginCallback &callback);
+    QSharedPointer<RequestToken> loginCookie(const QString &cookie, const LoginCallback &callback);
 	QSharedPointer<RequestToken> captchaSent(const QString &phone, const QString &countryCode, const std::function<void(Result<bool>)> &callback);
 	QSharedPointer<RequestToken> captchaVerify(const QString &phone, const QString &captcha, const QString &countryCode, const std::function<void(Result<bool>)> &callback);
 	QSharedPointer<RequestToken> loginEmail(const QString &email, const QString &password, const LoginCallback &callback);

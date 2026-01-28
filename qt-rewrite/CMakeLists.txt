@@ -63,6 +63,7 @@ qt_add_qml_module(appqtrewrite
         "ui-asset/black-backgroud/music_playerModes/循环.svg"
         "ui-asset/black-backgroud/login/网易云音乐.svg"
         "ui-asset/black-backgroud/login/网易邮箱.svg"
+        "ui-asset/black-backgroud/login/QQ-music.svg"
         "ui-asset/black-backgroud/musiclist/add.svg"
         "ui-asset/black-backgroud/login/qrcode.svg"
         "ui-asset/black-backgroud/login/visible.svg"

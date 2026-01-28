@@ -158,6 +158,7 @@ public:
 	Q_INVOKABLE void loginQrCheck(const QString &key);
 	Q_INVOKABLE void loginCellphone(const QString &phone, const QString &password, const QString &countryCode = QString());
 	Q_INVOKABLE void loginCellphoneCaptcha(const QString &phone, const QString &captcha, const QString &countryCode = QString());
+    Q_INVOKABLE void loginCookie(const QString &cookie);
 	Q_INVOKABLE void captchaSent(const QString &phone, const QString &countryCode = QString());
 	Q_INVOKABLE void captchaVerify(const QString &phone, const QString &captcha, const QString &countryCode = QString());
 	Q_INVOKABLE void loginEmail(const QString &email, const QString &password);

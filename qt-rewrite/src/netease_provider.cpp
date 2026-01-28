@@ -2174,6 +2174,28 @@ QSharedPointer<RequestToken> NeteaseProvider::loginCellphoneCaptcha(const QStrin
 	});
 }
 
+QSharedPointer<RequestToken> NeteaseProvider::loginCookie(const QString &cookie, const LoginCallback &callback)
+{
+    HttpRequestOptions opts;
+    opts.method = "POST";
+    // Using user-provided endpoint /user/setCookie
+    opts.url = buildUrl(QStringLiteral("/user/setCookie"), {});
+    opts.headers.insert("Content-Type", "application/json");
+
+    QJsonObject json;
+    json.insert("data", cookie);
+    opts.body = QJsonDocument(json).toJson();
+
+    return client->sendWithRetry(opts, 1, 0, [this, callback](Result<HttpResponse> result) {
+        if (!result.ok)
+        {
+            callback(Result<UserProfile>::failure(result.error));
+            return;
+        }
+        callback(parseLoginResult(result.value.body));
+    });
+}
+
 QSharedPointer<RequestToken> NeteaseProvider::captchaSent(const QString &phone, const QString &countryCode, const std::function<void(Result<bool>)> &callback)
 {
 	HttpRequestOptions opts;

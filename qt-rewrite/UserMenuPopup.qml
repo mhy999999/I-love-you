@@ -3,7 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Controls.Basic
 import QtQuick.Effects
-import Qt.labs.settings
+import QtCore
 
 Popup {
     id: userMenuPopup
