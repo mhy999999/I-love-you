@@ -15,12 +15,60 @@
 #include <QTimer>
 #include <QUrlQuery>
 #include <QDateTime>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
+#include <QEventLoop>
 
 #include "logger.h"
 #include "json_utils.h"
 
 namespace App
 {
+
+namespace
+{
+
+bool probeUrl(const QUrl &url)
+{
+	if (!url.isValid() || url.isEmpty())
+		return false;
+	QNetworkAccessManager manager;
+	QNetworkRequest req(url);
+	req.setRawHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36");
+	req.setRawHeader("Range", "bytes=0-0");
+
+	QNetworkReply *reply = manager.get(req);
+	QEventLoop loop;
+	QTimer timer;
+	timer.setSingleShot(true);
+
+	QObject::connect(&timer, &QTimer::timeout, &loop, [&]() {
+		if (reply->isRunning())
+			reply->abort();
+		loop.quit();
+	});
+	QObject::connect(reply, &QNetworkReply::finished, &loop, [&]() {
+		loop.quit();
+	});
+
+	timer.start(2000);
+	loop.exec();
+
+	bool ok = (reply->error() == QNetworkReply::NoError);
+	QVariant status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute);
+	if (status.isValid())
+	{
+		int code = status.toInt();
+		if (code >= 400)
+			ok = false;
+	}
+
+	reply->deleteLater();
+	return ok;
+}
+
+}
 
 NeteaseProvider::NeteaseProvider(HttpClient *httpClient, const QUrl &baseUrl, QObject *parent)
 	: IProvider(parent)
@@ -933,6 +981,14 @@ QSharedPointer<RequestToken> NeteaseProvider::playUrl(const QString &songId, con
 					(*nextFn)();
 					return;
 				}
+
+				if (!probeUrl(QUrl(urlStr)))
+				{
+					Logger::warning(QStringLiteral("GD Studio url probe failed: %1").arg(urlStr));
+					(*nextFn)();
+					return;
+				}
+
 				PlayUrl p;
 				p.url = QUrl(urlStr);
 				p.bitrate = o.value(QStringLiteral("br")).toVariant().toInt();

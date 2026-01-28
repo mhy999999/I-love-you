@@ -239,6 +239,7 @@ signals:
     void userLevelReceived(const QVariantMap &data);
 
 private:
+	void playIndexInternal(int index, bool resetRetry = true);
 	HttpClient httpClient;
 	ProviderManager providerManager;
 	GdStudioProvider *gdStudioProvider = nullptr;
@@ -280,6 +281,7 @@ private:
 	qint64 m_positionMs = 0;
 	qint64 m_durationMs = 0;
 	int m_currentSongIndex = -1;
+	int m_retryCount = 0;
 	int m_currentLyricIndex = -1;
 	qint64 m_lyricOffsetMs = 0;
 	QUrl m_coverSource;

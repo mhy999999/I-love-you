@@ -413,6 +413,22 @@ MusicController::MusicController(QObject *parent)
 	});
 	QObject::connect(&m_player, &QMediaPlayer::errorOccurred, this, [this](QMediaPlayer::Error error, const QString &errorString) {
 		Logger::error(QStringLiteral("Player error: %1 - %2").arg(error).arg(errorString));
+		
+		if (m_retryCount < 3)
+		{
+			quint64 requestId = m_playRequestId;
+			m_retryCount++;
+			Logger::info(QStringLiteral("Retrying playback (attempt %1)...").arg(m_retryCount));
+			QTimer::singleShot(1000, this, [this, requestId]() {
+				// Only retry if the song index hasn't changed (user didn't switch songs)
+				// Note: Ideally we should track requestId, but checking index is a reasonable proxy
+				if (m_playRequestId != requestId)
+					return;
+				playIndexInternal(m_currentSongIndex, false);
+			});
+			return;
+		}
+		
 		emit errorOccurred(errorString);
 	});
 
@@ -1236,8 +1252,17 @@ QStringList MusicController::searchSuggestions() const
 
 void MusicController::playIndex(int index)
 {
+	playIndexInternal(index, true);
+}
+
+void MusicController::playIndexInternal(int index, bool resetRetry)
+{
 	if (index < 0 || index >= m_queueModel.rowCount())
 		return;
+	
+	if (resetRetry)
+		m_retryCount = 0;
+
 	setCurrentSongIndex(index);
 	// 记录本次播放序号，避免旧 playUrl 回调覆盖当前播放
 	quint64 requestId = ++m_playRequestId;
